@@ -10,6 +10,7 @@ use persist_core::daemon::SOCK_FILE;
 use persist_core::error::Error;
 
 use crate::daemon::client::DaemonClient;
+use crate::format;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
 pub enum Opts {
@@ -22,7 +23,7 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
         Opts::Kill => {
             let mut daemon = self::connect().await?;
             daemon.kill().await?;
-            println!("daemon successfully killed !");
+            format::success("daemon successfully killed.");
         }
     }
 
@@ -37,6 +38,7 @@ pub async fn connect() -> Result<DaemonClient, Error> {
     let client = match DaemonClient::new(&socket_path).await {
         Ok(client) => client,
         Err(_) => {
+            format::info("daemon is not running, spawning it...");
             let mut cur_exe = std::env::current_exe()?;
             cur_exe.set_file_name("persist-daemon");
 
@@ -47,7 +49,9 @@ pub async fn connect() -> Result<DaemonClient, Error> {
             // Let some time to the daemon to fully initialize its environment.
             tokio::timer::delay_for(Duration::from_millis(250)).await;
 
-            DaemonClient::new(&socket_path).await?
+            let client = DaemonClient::new(&socket_path).await?;
+            format::info("daemon spawned and connected.");
+            client
         }
     };
 

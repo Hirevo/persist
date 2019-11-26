@@ -102,7 +102,7 @@ impl State {
             .await?;
         let mut stdout_sink = FramedWrite::new(stdout_sink, LinesCodec::new());
 
-        let stderr_path = format!("{}-out.log", name);
+        let stderr_path = format!("{}-err.log", name);
         let stderr_path = logs_dir.join(stderr_path);
         let stderr_path = stderr_path.canonicalize()?;
         let stderr_sink = OpenOptions::new()

@@ -10,14 +10,15 @@ edition = "2018"
 persist-core = { path = "../persist-core" }
 
 # runtime
-tokio = { version = "0.2.0-alpha.6", features = ["macros", "process"] }
+tokio = { version = "=0.2.0-alpha.6", features = ["macros", "process"] }
 futures-preview = { version = "0.3.0-alpha.19", features = ["async-await"] }
 
 # CLI helpers
-structopt = { version = "0.3.4" }
+structopt = { version = "0.3.5" }
 prettytable-rs = { version = "0.8.0" }
 humansize = { version = "1.1.0" }
+colored = { version = "1.9.0" }
 
 # (de)serialization
-serde = { version = "1.0.102", features = ["derive"] }
+serde = { version = "1.0.103", features = ["derive"] }
 json = { package = "serde_json", version = "1.0.41" }

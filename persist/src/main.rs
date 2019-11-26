@@ -6,6 +6,7 @@ use structopt::StructOpt;
 
 pub mod commands;
 pub mod daemon;
+pub mod format;
 
 use persist_core::error::Error;
 
@@ -46,7 +47,7 @@ async fn main() -> Result<(), Error> {
     };
 
     if let Err(err) = outcome {
-        eprintln!("error: {}", err);
+        format::error(format!("{}.", err));
     }
 
     Ok(())

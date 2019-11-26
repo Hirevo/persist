@@ -7,6 +7,7 @@ use persist_core::error::Error;
 use persist_core::protocol::NewProcess;
 
 use crate::daemon;
+use crate::format;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
 pub struct Opts {
@@ -18,8 +19,6 @@ pub struct Opts {
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
-    println!("opts: {:?}", opts);
-
     let name = opts.name;
     let cmd = opts.command;
     let cwd = env::current_dir()?;
@@ -34,7 +33,9 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     };
 
     let mut daemon = daemon::connect().await?;
+    let msg = format!("process '{}' successfully started.", spec.name);
     daemon.start(spec).await?;
+    format::success(msg);
 
     Ok(())
 }
