@@ -18,7 +18,7 @@ pub async fn handle(_: Opts) -> Result<(), Error> {
 
     let mut table = Table::new();
     table.set_format(*FORMAT_NO_LINESEP_WITH_TITLE);
-    table.set_titles(row![bFb => "Name", "PID", "Status", "CPU", "Memory"]);
+    table.set_titles(row![b => "Name", "PID", "Status", "CPU", "Memory"]);
     if metrics.is_empty() {
         table.add_row(row![bcH5 => "Empty list."]);
     } else {

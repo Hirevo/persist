@@ -29,21 +29,21 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
         .padding(1, 1)
         .build();
     table.set_format(table_fmt);
-    table.add_row(row![bFb -> "Name", info.name]);
-    table.add_row(row![bFb -> "Status", info.status]);
+    table.add_row(row![b -> "Name", info.name]);
+    table.add_row(row![b -> "Status", info.status]);
     let pid = match info.pid {
         Some(pid) => pid.to_string(),
         None => "none".to_string(),
     };
-    table.add_row(row![bFb -> "PID", pid]);
+    table.add_row(row![b -> "PID", pid]);
     let (cmd, args) = info.cmd.split_first().unwrap();
-    table.add_row(row![bFb -> "Command", format!("{:?}", cmd)]);
-    table.add_row(row![bFb -> "Args", format!("{:?}", args)]);
-    table.add_row(row![bFb -> "Working dir", info.cwd.display()]);
-    table.add_row(row![bFb -> "Created at", info.created_at.format("%Y-%m-%d %H:%M:%S")]);
-    table.add_row(row![bFb -> "PID file", info.pid_path.display()]);
-    table.add_row(row![bFb -> "Output log file", info.stdout_path.display()]);
-    table.add_row(row![bFb -> "Error log file", info.stderr_path.display()]);
+    table.add_row(row![b -> "Command", format!("{:?}", cmd)]);
+    table.add_row(row![b -> "Args", format!("{:?}", args)]);
+    table.add_row(row![b -> "Working dir", info.cwd.display()]);
+    table.add_row(row![b -> "Created at", info.created_at.format("%Y-%m-%d %H:%M:%S")]);
+    table.add_row(row![b -> "PID file", info.pid_path.display()]);
+    table.add_row(row![b -> "Output log file", info.stdout_path.display()]);
+    table.add_row(row![b -> "Error log file", info.stderr_path.display()]);
     table.printstd();
 
     Ok(())

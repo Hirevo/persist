@@ -104,7 +104,6 @@ impl State {
 
         let stderr_path = format!("{}-err.log", name);
         let stderr_path = logs_dir.join(stderr_path);
-        let stderr_path = stderr_path.canonicalize()?;
         let stderr_sink = OpenOptions::new()
             .create(true)
             .append(true)
