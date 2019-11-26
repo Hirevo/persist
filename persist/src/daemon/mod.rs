@@ -1,0 +1,55 @@
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use structopt::StructOpt;
+use tokio::net::process::Command;
+
+pub mod client;
+
+use persist_core::daemon::SOCK_FILE;
+use persist_core::error::Error;
+
+use crate::daemon::client::DaemonClient;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+pub enum Opts {
+    /// Kill the current daemon (will stop all managed processes)
+    Kill,
+}
+
+pub async fn handle(opts: Opts) -> Result<(), Error> {
+    match opts {
+        Opts::Kill => {
+            let mut daemon = self::connect().await?;
+            daemon.kill().await?;
+            println!("daemon successfully killed !");
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn connect() -> Result<DaemonClient, Error> {
+    let home_dir = persist_core::daemon::home_dir()?;
+    let socket_path = home_dir.join(SOCK_FILE);
+
+    // if daemon doesn't exists, spawn it.
+    let client = match DaemonClient::new(&socket_path).await {
+        Ok(client) => client,
+        Err(_) => {
+            let mut cur_exe = std::env::current_exe()?;
+            cur_exe.set_file_name("persist-daemon");
+
+            // Spawn the daemon.
+            // (it is ok to await on it, because it should fork to daemonize early anyway).
+            let _ = Command::new(cur_exe).arg("start").spawn()?.await?;
+
+            // Let some time to the daemon to fully initialize its environment.
+            tokio::timer::delay_for(Duration::from_millis(250)).await;
+
+            DaemonClient::new(&socket_path).await?
+        }
+    };
+
+    Ok(client)
+}

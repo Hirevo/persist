@@ -1,0 +1,28 @@
+[package]
+name = "persist-daemon"
+description = "Daemon for persist, the process manager"
+version = "0.1.0"
+authors = ["Nicolas Polomack <nicolas@polomack.eu>"]
+edition = "2018"
+
+[dependencies]
+# internal
+persist-core = { path = "../persist-core" }
+
+# runtime
+tokio = { version = "0.2.0-alpha.6", features = ["macros", "process"] }
+futures-preview = { version = "0.3.0-alpha.19", features = ["async-await"] }
+
+# process/system monitoring
+heim = { version = "0.0.8" }
+
+# CLI helpers
+structopt = { version = "0.3.4" }
+
+# (de)serialization
+serde = { version = "1.0.102", features = ["derive"] }
+json = { package = "serde_json", version = "1.0.41" }
+
+# misc
+chrono = { version = "0.4.9", features = ["serde"] }
+nix = { version = "0.15.0" }

@@ -1,0 +1,18 @@
+[package]
+name = "persist-core"
+description = "Core library for persist, the process manager"
+version = "0.1.0"
+authors = ["Nicolas Polomack <nicolas@polomack.eu>"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "1.0.102", features = ["derive"] }
+chrono = { version = "0.4.9", features = ["serde"] }
+thiserror = { version = "1.0.6" }
+dirs = { version = "2.0.2" }
+
+# error aggregate
+tokio = { version = "0.2.0-alpha.6", features = ["macros", "process"] }
+heim = { version = "0.0.8" }
+json = { package = "serde_json", version = "1.0.41" }
+nix = { version = "0.15.0" }

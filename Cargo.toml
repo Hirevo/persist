@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "persist",
+    "persist-core",
+    "persist-daemon"
+]
