@@ -1,9 +1,15 @@
 [package]
 name = "persist-daemon"
-description = "Daemon for persist, the process manager"
 version = "0.1.0"
-authors = ["Nicolas Polomack <nicolas@polomack.eu>"]
 edition = "2018"
+authors = ["Nicolas Polomack <nicolas@polomack.eu>"]
+description = "Daemon for persist, the process manager"
+repository = "https://github.com/Hirevo/persist"
+categories = ["command-line-utilities"]
+keywords = ["process", "system", "monitor"]
+license = "MIT OR Apache-2.0"
+
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 # internal
