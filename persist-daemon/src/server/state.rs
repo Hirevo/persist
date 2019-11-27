@@ -133,7 +133,6 @@ impl State {
             env: spec.env,
             created_at: now,
             cwd: spec.cwd,
-            status: ProcessStatus::Running,
             pid_path: pid_path.canonicalize()?,
             stdout_path: stdout_path.canonicalize()?,
             stderr_path: stderr_path.canonicalize()?,
@@ -344,5 +343,24 @@ impl State {
         };
 
         Ok(info)
+    }
+
+    pub async fn dump(&self, names: Vec<String>) -> Result<Vec<ProcessSpec>, Error> {
+        let processes = self.processes.lock().await;
+
+        let specs = if names.is_empty() {
+            processes
+                .iter()
+                .map(|(_, (spec, _))| spec.clone())
+                .collect()
+        } else {
+            processes
+                .iter()
+                .filter(|(name, _)| names.contains(name))
+                .map(|(_, (spec, _))| spec.clone())
+                .collect()
+        };
+
+        Ok(specs)
     }
 }

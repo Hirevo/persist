@@ -25,7 +25,6 @@ pub struct ProcessSpec {
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
     pub env: Vec<(String, String)>,
-    pub status: ProcessStatus,
     pub pid_path: PathBuf,
     pub stdout_path: PathBuf,
     pub stderr_path: PathBuf,
@@ -72,6 +71,7 @@ pub enum Request {
     Restart(String),
     Info(String),
     Delete(String),
+    Dump(Vec<String>),
     Kill,
 }
 
@@ -84,5 +84,6 @@ pub enum Response {
     Restart(ProcessInfo),
     Info(ProcessInfo),
     Delete,
+    Dump(Vec<ProcessSpec>),
     Error(String),
 }

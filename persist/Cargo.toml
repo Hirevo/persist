@@ -22,3 +22,6 @@ colored = { version = "1.9.0" }
 # (de)serialization
 serde = { version = "1.0.103", features = ["derive"] }
 json = { package = "serde_json", version = "1.0.41" }
+
+# miscellaneous
+chrono = { version = "0.4.10", features = ["serde"] }

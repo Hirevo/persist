@@ -65,6 +65,13 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
                     let _ = framed.send(serialized).await;
                 }
             }
+            Request::Dump(names) => {
+                if let Err(err) = dump::handle(state.clone(), &mut framed, names).await {
+                    let response = Response::Error(err.to_string());
+                    let serialized = json::to_string(&response)?;
+                    let _ = framed.send(serialized).await;
+                }
+            }
             Request::Kill => std::process::exit(0),
         }
     }

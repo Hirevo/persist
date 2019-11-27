@@ -6,7 +6,9 @@ use tokio::codec::{Framed, LinesCodec};
 use tokio::net::UnixStream;
 
 use persist_core::error::Error;
-use persist_core::protocol::{NewProcess, ProcessInfo, ProcessMetrics, Request, Response};
+use persist_core::protocol::{
+    NewProcess, ProcessInfo, ProcessMetrics, ProcessSpec, Request, Response,
+};
 
 pub struct DaemonClient {
     socket: Framed<UnixStream, LinesCodec>,
@@ -171,5 +173,29 @@ impl DaemonClient {
         };
 
         Ok(spec)
+    }
+
+    pub async fn dump(&mut self, names: Vec<String>) -> Result<Vec<ProcessSpec>, Error> {
+        let request = Request::Dump(names);
+        let serialized = json::to_string(&request)?;
+
+        self.socket.send(serialized).await?;
+
+        let response = if let Some(response) = self.socket.next().await {
+            let response = response?;
+            json::from_str::<Response>(response.as_str())?
+        } else {
+            return Err(Error::from(String::from(
+                "daemon closed connection without responding",
+            )));
+        };
+
+        let specs = match response {
+            Response::Dump(specs) => specs,
+            Response::Error(err) => return Err(Error::from(err)),
+            _ => return Err(Error::from(String::from("unexpected response from daemon"))),
+        };
+
+        Ok(specs)
     }
 }

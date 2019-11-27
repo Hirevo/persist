@@ -6,11 +6,10 @@ use structopt::StructOpt;
 
 pub mod commands;
 pub mod daemon;
+pub mod dump;
 pub mod format;
 
 use persist_core::error::Error;
-
-use crate::commands::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
 #[structopt(about, author)]
@@ -18,18 +17,20 @@ pub enum Opts {
     /// Commands to control the daemon (advanced)
     Daemon(daemon::Opts),
     /// Start a new process
-    Start(start::Opts),
+    Start(commands::start::Opts),
     /// Stop a running process
-    Stop(stop::Opts),
+    Stop(commands::stop::Opts),
     /// Restart a process
-    Restart(restart::Opts),
+    Restart(commands::restart::Opts),
     /// Get information about a process
-    Info(info::Opts),
+    Info(commands::info::Opts),
     /// Delete an existing process
-    Delete(delete::Opts),
+    Delete(commands::delete::Opts),
     /// List all managed processes
     #[structopt(name = "list", alias = "ls")]
-    List(list::Opts),
+    List(commands::list::Opts),
+    /// Dump the current process configurations
+    Dump(commands::dump::Opts),
 }
 
 #[tokio::main]
@@ -37,13 +38,14 @@ async fn main() -> Result<(), Error> {
     let config = Opts::from_args();
 
     let outcome = match config {
+        Opts::Daemon(config) => daemon::handle(config).await,
         Opts::Start(config) => commands::start::handle(config).await,
         Opts::Stop(config) => commands::stop::handle(config).await,
         Opts::Restart(config) => commands::restart::handle(config).await,
         Opts::Info(config) => commands::info::handle(config).await,
         Opts::Delete(config) => commands::delete::handle(config).await,
         Opts::List(config) => commands::list::handle(config).await,
-        Opts::Daemon(config) => daemon::handle(config).await,
+        Opts::Dump(config) => commands::dump::handle(config).await,
     };
 
     if let Err(err) = outcome {
