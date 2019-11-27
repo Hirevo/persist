@@ -22,57 +22,21 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
         let frame = frame?;
         let request = json::from_str::<Request>(frame.as_str())?;
 
-        match request {
-            Request::List => {
-                if let Err(err) = list::handle(state.clone(), &mut framed).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Start(spec) => {
-                if let Err(err) = start::handle(state.clone(), &mut framed, spec).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Stop(name) => {
-                if let Err(err) = stop::handle(state.clone(), &mut framed, name).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Restart(name) => {
-                if let Err(err) = restart::handle(state.clone(), &mut framed, name).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Info(name) => {
-                if let Err(err) = info::handle(state.clone(), &mut framed, name).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Delete(name) => {
-                if let Err(err) = delete::handle(state.clone(), &mut framed, name).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
-            Request::Dump(names) => {
-                if let Err(err) = dump::handle(state.clone(), &mut framed, names).await {
-                    let response = Response::Error(err.to_string());
-                    let serialized = json::to_string(&response)?;
-                    let _ = framed.send(serialized).await;
-                }
-            }
+        let outcome = match request {
+            Request::List => list::handle(state.clone(), &mut framed).await,
+            Request::Start(spec) => start::handle(state.clone(), &mut framed, spec).await,
+            Request::Stop(name) => stop::handle(state.clone(), &mut framed, name).await,
+            Request::Restart(name) => restart::handle(state.clone(), &mut framed, name).await,
+            Request::Info(name) => info::handle(state.clone(), &mut framed, name).await,
+            Request::Delete(name) => delete::handle(state.clone(), &mut framed, name).await,
+            Request::Dump(names) => dump::handle(state.clone(), &mut framed, names).await,
             Request::Kill => std::process::exit(0),
+        };
+
+        if let Err(err) = outcome {
+            let response = Response::Error(err.to_string());
+            let serialized = json::to_string(&response)?;
+            let _ = framed.send(serialized).await;
         }
     }
 
