@@ -21,10 +21,12 @@ pub async fn handle(
             future.await
         }
     };
-    let future = futures::future::join_all(names.into_iter().map(|name| async {
-        let res = state.delete(name.as_str()).await;
-        let error = res.err().map(|err| err.to_string());
-        DeleteResponse { name, error }
+    let future = futures::future::join_all(names.into_iter().map(|name| {
+        async {
+            let res = state.delete(name.as_str()).await;
+            let error = res.err().map(|err| err.to_string());
+            DeleteResponse { name, error }
+        }
     }));
 
     let responses = future.await;
