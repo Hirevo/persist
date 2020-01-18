@@ -1,12 +1,22 @@
+use std::collections::HashMap;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+mod request;
+mod response;
+
+pub use self::request::*;
+pub use self::response::*;
+
+/// The status of a process.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProcessStatus {
+    /// The process is running normally.
     Running,
+    /// The process is stopped.
     Stopped,
 }
 
@@ -19,71 +29,33 @@ impl Display for ProcessStatus {
     }
 }
 
+/// A process specification.
+///
+/// It is a complete description of a process' environment and configuration.  
+/// It can be used to save and restore processes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessSpec {
     pub name: String,
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
-    pub env: Vec<(String, String)>,
+    pub env: HashMap<String, String>,
     pub pid_path: PathBuf,
     pub stdout_path: PathBuf,
     pub stderr_path: PathBuf,
     pub created_at: chrono::NaiveDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProcessMetrics {
-    pub name: String,
-    pub pid: Option<usize>,
-    pub status: ProcessStatus,
-    pub cpu_usage: u32,
-    pub mem_usage: u32,
-}
-
+/// Information about a current state of a process.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessInfo {
     pub name: String,
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
-    pub env: Vec<(String, String)>,
+    pub env: HashMap<String, String>,
     pub pid: Option<usize>,
     pub status: ProcessStatus,
     pub pid_path: PathBuf,
     pub stdout_path: PathBuf,
     pub stderr_path: PathBuf,
     pub created_at: chrono::NaiveDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NewProcess {
-    pub name: String,
-    pub cmd: Vec<String>,
-    pub cwd: PathBuf,
-    pub env: Vec<(String, String)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data", rename_all = "kebab-case")]
-pub enum Request {
-    List,
-    Start(NewProcess),
-    Stop(String),
-    Restart(String),
-    Info(String),
-    Delete(String),
-    Dump(Vec<String>),
-    Kill,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data", rename_all = "kebab-case")]
-pub enum Response {
-    List(Vec<ProcessMetrics>),
-    Start(ProcessInfo),
-    Stop,
-    Restart(ProcessInfo),
-    Info(ProcessInfo),
-    Delete,
-    Dump(Vec<ProcessSpec>),
-    Error(String),
 }

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use tokio::codec::{Framed, LinesCodec};
 use tokio::net::{UnixListener, UnixStream};
+use tokio_util::codec::{Framed, LinesCodec};
 
 pub mod request;
 pub mod state;
@@ -23,13 +23,13 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
         let request = json::from_str::<Request>(frame.as_str())?;
 
         let outcome = match request {
-            Request::List => list::handle(state.clone(), &mut framed).await,
-            Request::Start(spec) => start::handle(state.clone(), &mut framed, spec).await,
-            Request::Stop(name) => stop::handle(state.clone(), &mut framed, name).await,
-            Request::Restart(name) => restart::handle(state.clone(), &mut framed, name).await,
-            Request::Info(name) => info::handle(state.clone(), &mut framed, name).await,
-            Request::Delete(name) => delete::handle(state.clone(), &mut framed, name).await,
-            Request::Dump(names) => dump::handle(state.clone(), &mut framed, names).await,
+            Request::List(request) => list::handle(state.clone(), &mut framed, request).await,
+            Request::Start(request) => start::handle(state.clone(), &mut framed, request).await,
+            Request::Stop(request) => stop::handle(state.clone(), &mut framed, request).await,
+            Request::Restart(request) => restart::handle(state.clone(), &mut framed, request).await,
+            Request::Info(request) => info::handle(state.clone(), &mut framed, request).await,
+            Request::Delete(request) => delete::handle(state.clone(), &mut framed, request).await,
+            Request::Dump(request) => dump::handle(state.clone(), &mut framed, request).await,
             Request::Kill => std::process::exit(0),
         };
 
@@ -46,7 +46,7 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
 pub async fn start() -> Result<(), Error> {
     let state = Arc::new(State::new());
     let _ = tokio::fs::remove_file(SOCK_FILE).await;
-    let listener = UnixListener::bind(SOCK_FILE)?;
+    let mut listener = UnixListener::bind(SOCK_FILE)?;
 
     let pid = std::process::id();
     tokio::fs::write(PID_FILE, pid.to_string()).await?;
@@ -55,15 +55,12 @@ pub async fn start() -> Result<(), Error> {
     while let Some(conn) = incoming.next().await {
         if let Ok(conn) = conn {
             let state = state.clone();
-            tokio::spawn(
-                #[allow(clippy::redundant_pattern_matching)]
-                async move {
-                    if let Err(err) = handle_conn(state, conn).await {
-                        // TODO: do something about this error ?
-                        eprintln!("conn error: {}", err);
-                    }
-                },
-            );
+            tokio::spawn(async move {
+                if let Err(err) = handle_conn(state, conn).await {
+                    // TODO: do something about this error ?
+                    eprintln!("conn error: {}", err);
+                }
+            });
         }
     }
 

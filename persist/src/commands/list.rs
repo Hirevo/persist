@@ -1,3 +1,4 @@
+use colored::Colorize;
 use humansize::file_size_opts::CONVENTIONAL;
 use humansize::FileSize;
 use prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE;
@@ -6,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 use persist_core::error::Error;
+use persist_core::protocol::{ListRequest, ProcessStatus};
 
 use crate::daemon;
 
@@ -14,7 +16,7 @@ pub struct Opts {}
 
 pub async fn handle(_: Opts) -> Result<(), Error> {
     let mut daemon = daemon::connect().await?;
-    let metrics = daemon.list().await?;
+    let metrics = daemon.list(ListRequest { filters: None }).await?;
 
     let mut table = Table::new();
     table.set_format(*FORMAT_NO_LINESEP_WITH_TITLE);
@@ -24,7 +26,10 @@ pub async fn handle(_: Opts) -> Result<(), Error> {
     } else {
         for metric in metrics {
             let name = metric.name;
-            let status = metric.status;
+            let status = match metric.status {
+                ProcessStatus::Running => "running".green().bold(),
+                ProcessStatus::Stopped => "stopped".red().bold(),
+            };
             let cpu_usage = format!("{} %", metric.cpu_usage);
             let mem_usage = metric.mem_usage.file_size(CONVENTIONAL).unwrap();
             let pid = match metric.pid {

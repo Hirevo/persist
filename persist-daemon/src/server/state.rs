@@ -9,14 +9,13 @@ use futures::stream::StreamExt;
 use heim::process::Process;
 use heim::units::information::byte;
 use heim::units::ratio;
-use tokio::codec::{FramedRead, FramedWrite, LinesCodec};
+use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 use tokio::fs::OpenOptions;
-use tokio::net::process::Command;
+use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
-use persist_core::daemon::{self, LOGS_DIR, PIDS_DIR};
 use persist_core::error::{Error, PersistError};
-use persist_core::protocol::{NewProcess, ProcessInfo, ProcessMetrics, ProcessSpec, ProcessStatus};
+use persist_core::protocol::{ProcessInfo, ProcessSpec, ProcessStatus, ListResponse};
 
 #[derive(Default)]
 pub struct State {
@@ -24,13 +23,72 @@ pub struct State {
 }
 
 impl State {
+    /// Constructs a new `State` instance, with no managed processes.
     pub fn new() -> State {
         State {
             processes: Mutex::new(HashMap::new()),
         }
     }
 
-    pub async fn list(&self) -> Result<Vec<ProcessMetrics>, Error> {
+    /// Gets the process specification associated with the given name.
+    pub async fn spec(&self, name: impl AsRef<str>) -> Result<ProcessSpec, Error> {
+        let processes = self.processes.lock().await;
+        processes
+            .get(name.as_ref())
+            .map(|(spec, _)| spec.clone())
+            .ok_or_else(|| Error::from(PersistError::ProcessNotFound))
+    }
+
+    /// Executes a closure and provides it every process handles.
+    ///
+    /// This closure is executed while holding a lock, so avoid calling other methods on `State` inside that closure.
+    pub async fn with_handles<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&HashMap<String, (ProcessSpec, Option<Process>)>) -> T,
+    {
+        let processes = self.processes.lock().await;
+
+        f(&processes)
+    }
+
+    /// Executes a closure and provides it the process handle of the specified process.
+    ///
+    /// This closure is executed while holding a lock, so avoid calling other methods on `State` inside that closure.
+    pub async fn with_handle<S, F, T>(&self, name: S, f: F) -> Result<T, Error>
+    where
+        S: AsRef<str>,
+        F: FnOnce(&(ProcessSpec, Option<Process>)) -> T,
+    {
+        let processes = self.processes.lock().await;
+
+        let handle = processes
+            .get(name.as_ref())
+            .ok_or(PersistError::ProcessNotFound)?;
+
+        Ok(f(handle))
+    }
+
+    /// Spawns a new process according to the given spec, returning the child handle.
+    ///
+    /// It nullifies stdin and captures stdout and stderr.
+    async fn spawn(&self, spec: ProcessSpec) -> Result<Child, Error> {
+        let (cmd, args) = spec.cmd.split_first().expect("empty command");
+        let envs = spec.env.clone();
+
+        let child = Command::new(cmd)
+            .args(args)
+            .env_clear()
+            .envs(envs)
+            .current_dir(spec.cwd.as_path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        Ok(child)
+    }
+
+    pub async fn list(&self) -> Result<Vec<ListResponse>, Error> {
         let processes = self.processes.lock().await;
 
         let mut metrics = Vec::with_capacity(processes.len());
@@ -40,7 +98,7 @@ impl State {
                     let pid = handle.pid();
                     let cpu_usage = {
                         let usage1 = handle.cpu_usage().await?;
-                        tokio::timer::delay_for(Duration::from_millis(200)).await;
+                        tokio::time::delay_for(Duration::from_millis(200)).await;
                         let usage2 = handle.cpu_usage().await?;
                         (usage2 - usage1).get::<ratio::percent>()
                     } as u32;
@@ -55,7 +113,7 @@ impl State {
                     (None, ProcessStatus::Stopped, 0u32, 0u32)
                 };
 
-                Ok::<ProcessMetrics, Error>(ProcessMetrics {
+                Ok::<ListResponse, Error>(ListResponse {
                     pid,
                     status,
                     cpu_usage,
@@ -72,76 +130,38 @@ impl State {
         Ok(metrics)
     }
 
-    pub async fn start(self: Arc<Self>, spec: NewProcess) -> Result<ProcessInfo, Error> {
+    pub async fn start(self: Arc<Self>, spec: ProcessSpec) -> Result<ProcessInfo, Error> {
         let mut processes = self.processes.lock().await;
 
-        let name = spec.name.as_str();
-        if processes.contains_key(name) {
+        if processes.contains_key(spec.name.as_str()) {
             return Err(Error::from(PersistError::ProcessAlreadyExists));
         }
 
-        let (cmd, args) = spec.cmd.split_first().expect("empty command");
-        let envs = spec.env.clone();
-
-        let home_dir = daemon::home_dir()?;
-        let pids_dir = home_dir.join(PIDS_DIR);
-        let logs_dir = home_dir.join(LOGS_DIR);
-
-        let _ = tokio::fs::create_dir(&pids_dir).await;
-        let _ = tokio::fs::create_dir(&logs_dir).await;
-
-        let pid_path = format!("{}.pid", name);
-        let pid_path = pids_dir.join(pid_path);
-
-        let stdout_path = format!("{}-out.log", name);
-        let stdout_path = logs_dir.join(stdout_path);
         let stdout_sink = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&stdout_path)
+            .open(&spec.stdout_path)
             .await?;
         let mut stdout_sink = FramedWrite::new(stdout_sink, LinesCodec::new());
 
-        let stderr_path = format!("{}-err.log", name);
-        let stderr_path = logs_dir.join(stderr_path);
         let stderr_sink = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&stderr_path)
+            .open(&spec.stderr_path)
             .await?;
         let mut stderr_sink = FramedWrite::new(stderr_sink, LinesCodec::new());
 
-        let now = chrono::Local::now().naive_local();
-        let mut child = Command::new(cmd)
-            .args(args)
-            .env_clear()
-            .envs(envs)
-            .current_dir(spec.cwd.as_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let mut child = self.spawn(spec.clone()).await?;
 
         let pid = child.id();
         let handle = heim::process::get(pid as i32).await?;
 
-        tokio::fs::write(pid_path.clone(), pid.to_string()).await?;
+        tokio::fs::write(spec.pid_path.clone(), pid.to_string()).await?;
 
-        let spec = ProcessSpec {
-            name: String::from(name),
-            cmd: spec.cmd,
-            env: spec.env,
-            created_at: now,
-            cwd: spec.cwd,
-            pid_path: pid_path.canonicalize()?,
-            stdout_path: stdout_path.canonicalize()?,
-            stderr_path: stderr_path.canonicalize()?,
-        };
+        processes.insert(spec.name.clone(), (spec.clone(), Some(handle)));
 
-        processes.insert(String::from(name), (spec.clone(), Some(handle)));
-
-        let stdout = child.stdout().take().unwrap();
-        let stderr = child.stderr().take().unwrap();
+        let stdout = child.stdout.take().expect("failed to capture stdout");
+        let stderr = child.stderr.take().expect("failed to capture stderr");
         let mut stdout = FramedRead::new(stdout, LinesCodec::new());
         let mut stderr = FramedRead::new(stderr, LinesCodec::new());
 
@@ -156,7 +176,7 @@ impl State {
             }
         });
 
-        let name = String::from(name);
+        let name = spec.name.clone();
         let cloned_self = self.clone();
         tokio::spawn(async move {
             let pid = child.id() as i32;
@@ -189,12 +209,12 @@ impl State {
         Ok(info)
     }
 
-    pub async fn stop(&self, name: String) -> Result<(), Error> {
+    pub async fn stop(&self, name: impl AsRef<str>) -> Result<(), Error> {
         let mut processes = self.processes.lock().await;
 
         let (_, child) = processes
-            .get_mut(&name)
-            .ok_or_else(|| PersistError::ProcessNotFound)?;
+            .get_mut(name.as_ref())
+            .ok_or(PersistError::ProcessNotFound)?;
 
         if let Some(child) = child.take() {
             let _ = child.terminate().await;
@@ -203,26 +223,16 @@ impl State {
         Ok(())
     }
 
-    pub async fn restart(self: Arc<Self>, name: String) -> Result<ProcessInfo, Error> {
+    pub async fn restart(self: Arc<Self>, spec: ProcessSpec) -> Result<ProcessInfo, Error> {
         let mut processes = self.processes.lock().await;
 
-        let (spec, og_handle) = processes
-            .get_mut(&name)
-            .ok_or_else(|| PersistError::ProcessNotFound)?;
+        let (_, og_handle) = processes
+            .get_mut(spec.name.as_str())
+            .ok_or(PersistError::ProcessNotFound)?;
 
         if let Some(child) = og_handle.take() {
             let _ = child.terminate().await;
         }
-
-        let (cmd, args) = spec.cmd.split_first().expect("empty command");
-        let envs = spec.env.clone();
-
-        let home_dir = daemon::home_dir()?;
-        let pids_dir = home_dir.join(PIDS_DIR);
-        let logs_dir = home_dir.join(LOGS_DIR);
-
-        let _ = tokio::fs::create_dir(&pids_dir).await;
-        let _ = tokio::fs::create_dir(&logs_dir).await;
 
         let stdout_sink = OpenOptions::new()
             .create(true)
@@ -238,15 +248,7 @@ impl State {
             .await?;
         let mut stderr_sink = FramedWrite::new(stderr_sink, LinesCodec::new());
 
-        let mut child = Command::new(cmd)
-            .args(args)
-            .env_clear()
-            .envs(envs)
-            .current_dir(spec.cwd.as_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let mut child = self.spawn(spec.clone()).await?;
 
         let pid = child.id();
         let handle = heim::process::get(pid as i32).await?;
@@ -255,8 +257,8 @@ impl State {
 
         let _ = og_handle.replace(handle);
 
-        let stdout = child.stdout().take().unwrap();
-        let stderr = child.stderr().take().unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
         let mut stdout = FramedRead::new(stdout, LinesCodec::new());
         let mut stderr = FramedRead::new(stderr, LinesCodec::new());
 
@@ -271,12 +273,13 @@ impl State {
             }
         });
 
+        let name = spec.name.clone();
         let cloned_self = self.clone();
         tokio::spawn(async move {
             let pid = child.id() as i32;
             let _ = child.await;
             let mut processes = cloned_self.processes.lock().await;
-            if let Some((_, handle)) = processes.get_mut(&name) {
+            if let Some((_, handle)) = processes.get_mut(name.as_str()) {
                 match handle {
                     Some(inner) if pid == inner.pid() => {
                         let _ = handle.take();
@@ -303,12 +306,12 @@ impl State {
         Ok(info)
     }
 
-    pub async fn delete(&self, name: String) -> Result<(), Error> {
+    pub async fn delete(&self, name: impl AsRef<str>) -> Result<(), Error> {
         let mut processes = self.processes.lock().await;
 
         let (_, handle) = processes
-            .remove(&name)
-            .ok_or_else(|| PersistError::ProcessNotFound)?;
+            .remove(name.as_ref())
+            .ok_or(PersistError::ProcessNotFound)?;
 
         if let Some(child) = handle {
             let _ = child.terminate().await;
@@ -317,48 +320,19 @@ impl State {
         Ok(())
     }
 
-    pub async fn info(&self, name: String) -> Result<ProcessInfo, Error> {
+    pub async fn dump(&self, filters: Option<Vec<String>>) -> Result<Vec<ProcessSpec>, Error> {
         let processes = self.processes.lock().await;
 
-        let (spec, handle) = processes
-            .get(&name)
-            .ok_or_else(|| PersistError::ProcessNotFound)?;
-
-        let (status, pid) = match handle {
-            Some(handle) => (ProcessStatus::Running, Some(handle.pid() as usize)),
-            None => (ProcessStatus::Stopped, None),
-        };
-
-        let info = ProcessInfo {
-            pid,
-            status,
-            name: spec.name.clone(),
-            cmd: spec.cmd.clone(),
-            cwd: spec.cwd.clone(),
-            env: spec.env.clone(),
-            created_at: spec.created_at,
-            pid_path: spec.pid_path.clone(),
-            stdout_path: spec.stdout_path.clone(),
-            stderr_path: spec.stderr_path.clone(),
-        };
-
-        Ok(info)
-    }
-
-    pub async fn dump(&self, names: Vec<String>) -> Result<Vec<ProcessSpec>, Error> {
-        let processes = self.processes.lock().await;
-
-        let specs = if names.is_empty() {
-            processes
+        let specs = match filters {
+            Some(filters) => processes
+                .iter()
+                .filter(|(name, _)| filters.contains(name))
+                .map(|(_, (spec, _))| spec.clone())
+                .collect(),
+            None => processes
                 .iter()
                 .map(|(_, (spec, _))| spec.clone())
-                .collect()
-        } else {
-            processes
-                .iter()
-                .filter(|(name, _)| names.contains(name))
-                .map(|(_, (spec, _))| spec.clone())
-                .collect()
+                .collect(),
         };
 
         Ok(specs)

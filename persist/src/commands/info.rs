@@ -1,9 +1,11 @@
+use colored::Colorize;
 use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use prettytable::Table;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 use persist_core::error::Error;
+use persist_core::protocol::{InfoRequest, InfoResponse, ProcessStatus};
 
 use crate::daemon;
 
@@ -16,21 +18,25 @@ pub struct Opts {
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
     let mut daemon = daemon::connect().await?;
-    let info = daemon.info(opts.name).await?;
+    let InfoResponse { info } = daemon.info(InfoRequest { name: opts.name }).await?;
 
     let mut table = Table::new();
+    let sep_pos = [LinePosition::Top, LinePosition::Bottom];
+    let sep_chars = LineSeparator::new('-', '+', '+', '+');
     let table_fmt = FormatBuilder::new()
         .column_separator('|')
         .borders('|')
-        .separators(
-            &[LinePosition::Top, LinePosition::Bottom],
-            LineSeparator::new('-', '+', '+', '+'),
-        )
+        .separators(&sep_pos, sep_chars)
         .padding(1, 1)
         .build();
     table.set_format(table_fmt);
+
     table.add_row(row![b -> "Name", info.name]);
-    table.add_row(row![b -> "Status", info.status]);
+    let status = match info.status {
+        ProcessStatus::Running => "running".green().bold(),
+        ProcessStatus::Stopped => "stopped".red().bold(),
+    };
+    table.add_row(row![b -> "Status", status]);
     let pid = match info.pid {
         Some(pid) => pid.to_string(),
         None => "none".to_string(),
@@ -44,6 +50,7 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     table.add_row(row![b -> "PID file", info.pid_path.display()]);
     table.add_row(row![b -> "Output log file", info.stdout_path.display()]);
     table.add_row(row![b -> "Error log file", info.stderr_path.display()]);
+
     table.printstd();
 
     Ok(())

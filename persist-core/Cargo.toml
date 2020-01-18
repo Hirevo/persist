@@ -9,16 +9,17 @@ categories = ["command-line-utilities"]
 keywords = ["process", "system", "monitor"]
 license = "MIT OR Apache-2.0"
 
+[badges]
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-serde = { version = "1.0.103", features = ["derive"] }
+serde = { version = "1.0.104", features = ["derive"] }
 chrono = { version = "0.4.10", features = ["serde"] }
-thiserror = { version = "1.0.6" }
-dirs = { version = "2.0.2" }
+thiserror = "1.0.9"
+dirs = "2.0.2"
 
 # error aggregate
-tokio = { version = "=0.2.0-alpha.6", features = ["macros", "process"] }
-heim = { version = "0.0.8" }
-json = { package = "serde_json", version = "1.0.41" }
-nix = { version = "0.15.0" }
+tokio-util = { version = "0.2.0", features = ["codec"] }
+json = { package = "serde_json", version = "1.0.44" }
+heim = "0.0.9"
+nix = "0.16.1"

@@ -32,7 +32,7 @@ fn main() -> Result<(), Error> {
             let _ = std::fs::create_dir(&home_dir);
             env::set_current_dir(home_dir)?;
 
-            let runtime = tokio::runtime::Runtime::new()?;
+            let mut runtime = tokio::runtime::Runtime::new()?;
             let outcome = runtime.block_on(server::start());
             if let Err(err) = outcome {
                 eprintln!("error: {}", err);

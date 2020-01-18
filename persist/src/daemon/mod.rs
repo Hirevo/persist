@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
-use tokio::net::process::Command;
+use tokio::process::Command;
 
 pub mod client;
 
@@ -47,7 +47,7 @@ pub async fn connect() -> Result<DaemonClient, Error> {
             let _ = Command::new(cur_exe).arg("start").spawn()?.await?;
 
             // Let some time to the daemon to fully initialize its environment.
-            tokio::timer::delay_for(Duration::from_millis(250)).await;
+            tokio::time::delay_for(Duration::from_millis(250)).await;
 
             let client = DaemonClient::new(&socket_path).await?;
             format::info("daemon spawned and connected.");

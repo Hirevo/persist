@@ -2,13 +2,11 @@ use std::path::Path;
 
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use tokio::codec::{Framed, LinesCodec};
+use tokio_util::codec::{Framed, LinesCodec};
 use tokio::net::UnixStream;
 
 use persist_core::error::Error;
-use persist_core::protocol::{
-    NewProcess, ProcessInfo, ProcessMetrics, ProcessSpec, Request, Response,
-};
+use persist_core::protocol::*;
 
 pub struct DaemonClient {
     socket: Framed<UnixStream, LinesCodec>,
@@ -31,8 +29,8 @@ impl DaemonClient {
         Ok(())
     }
 
-    pub async fn list(&mut self) -> Result<Vec<ProcessMetrics>, Error> {
-        let request = Request::List;
+    pub async fn list(&mut self, request: ListRequest) -> Result<Vec<ListResponse>, Error> {
+        let request = Request::List(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -46,17 +44,17 @@ impl DaemonClient {
             )));
         };
 
-        let metrics = match response {
-            Response::List(metrics) => metrics,
+        let responses = match response {
+            Response::List(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(metrics)
+        Ok(responses)
     }
 
-    pub async fn start(&mut self, spec: NewProcess) -> Result<ProcessInfo, Error> {
-        let request = Request::Start(spec);
+    pub async fn start(&mut self, request: StartRequest) -> Result<StartResponse, Error> {
+        let request = Request::Start(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -70,17 +68,17 @@ impl DaemonClient {
             )));
         };
 
-        let spec = match response {
-            Response::Start(spec) => spec,
+        let response = match response {
+            Response::Start(response) => response,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(spec)
+        Ok(response)
     }
 
-    pub async fn stop(&mut self, name: String) -> Result<(), Error> {
-        let request = Request::Stop(name);
+    pub async fn stop(&mut self, request: StopRequest) -> Result<Vec<StopResponse>, Error> {
+        let request = Request::Stop(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -94,17 +92,20 @@ impl DaemonClient {
             )));
         };
 
-        match response {
-            Response::Stop => (),
+        let responses = match response {
+            Response::Stop(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(())
+        Ok(responses)
     }
 
-    pub async fn restart(&mut self, name: String) -> Result<ProcessInfo, Error> {
-        let request = Request::Restart(name);
+    pub async fn restart(
+        &mut self,
+        request: RestartRequest,
+    ) -> Result<Vec<RestartResponse>, Error> {
+        let request = Request::Restart(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -118,17 +119,17 @@ impl DaemonClient {
             )));
         };
 
-        let spec = match response {
-            Response::Restart(spec) => spec,
+        let responses = match response {
+            Response::Restart(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(spec)
+        Ok(responses)
     }
 
-    pub async fn delete(&mut self, name: String) -> Result<(), Error> {
-        let request = Request::Delete(name);
+    pub async fn delete(&mut self, request: DeleteRequest) -> Result<Vec<DeleteResponse>, Error> {
+        let request = Request::Delete(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -142,17 +143,17 @@ impl DaemonClient {
             )));
         };
 
-        match response {
-            Response::Delete => (),
+        let responses = match response {
+            Response::Delete(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(())
+        Ok(responses)
     }
 
-    pub async fn info(&mut self, name: String) -> Result<ProcessInfo, Error> {
-        let request = Request::Info(name);
+    pub async fn info(&mut self, request: InfoRequest) -> Result<InfoResponse, Error> {
+        let request = Request::Info(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -166,17 +167,17 @@ impl DaemonClient {
             )));
         };
 
-        let spec = match response {
-            Response::Info(spec) => spec,
+        let response = match response {
+            Response::Info(response) => response,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(spec)
+        Ok(response)
     }
 
-    pub async fn dump(&mut self, names: Vec<String>) -> Result<Vec<ProcessSpec>, Error> {
-        let request = Request::Dump(names);
+    pub async fn dump(&mut self, request: DumpRequest) -> Result<Vec<DumpResponse>, Error> {
+        let request = Request::Dump(request);
         let serialized = json::to_string(&request)?;
 
         self.socket.send(serialized).await?;
@@ -190,12 +191,12 @@ impl DaemonClient {
             )));
         };
 
-        let specs = match response {
-            Response::Dump(specs) => specs,
+        let responses = match response {
+            Response::Dump(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };
 
-        Ok(specs)
+        Ok(responses)
     }
 }

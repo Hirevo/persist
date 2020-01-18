@@ -23,7 +23,7 @@ pub enum Error {
     #[error("{0}")]
     JSON(#[from] json::Error),
     #[error("{0}")]
-    Codec(#[from] tokio::codec::LinesCodecError),
+    Codec(#[from] tokio_util::codec::LinesCodecError),
     #[error("{0}")]
     Nix(#[from] nix::Error),
     #[error("{0}")]
