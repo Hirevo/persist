@@ -32,7 +32,10 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     let responses = daemon.delete(DeleteRequest { filters }).await?;
     for response in responses {
         if let Some(error) = response.error {
-            let msg = format!("process '{}' could not be deleted: {}", response.name, error);
+            let msg = format!(
+                "process '{}' could not be deleted: {}",
+                response.name, error
+            );
             format::error(msg);
         } else {
             let msg = format!("process '{}' successfully deleted.", response.name);

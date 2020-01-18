@@ -41,7 +41,10 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     let responses = daemon.restart(request).await?;
     for response in responses {
         if let Some(error) = response.error {
-            let msg = format!("process '{}' could not be restarted: {}", response.name, error);
+            let msg = format!(
+                "process '{}' could not be restarted: {}",
+                response.name, error
+            );
             format::error(msg);
         } else {
             let msg = format!("process '{}' successfully restarted.", response.name);

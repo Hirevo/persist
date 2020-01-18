@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use futures::sink::SinkExt;
-use tokio_util::codec::{Framed, LinesCodec};
 use tokio::net::UnixStream;
+use tokio_util::codec::{Framed, LinesCodec};
 
 use persist_core::daemon::{self, LOGS_DIR, PIDS_DIR};
 use persist_core::error::Error;

@@ -33,7 +33,10 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
 
     for response in responses {
         if let Some(error) = response.error {
-            let msg = format!("process '{}' could not be stopped: {}", response.name, error);
+            let msg = format!(
+                "process '{}' could not be stopped: {}",
+                response.name, error
+            );
             format::error(msg);
         } else {
             let msg = format!("process '{}' successfully stopped.", response.name);

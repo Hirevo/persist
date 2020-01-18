@@ -9,13 +9,13 @@ use futures::stream::StreamExt;
 use heim::process::Process;
 use heim::units::information::byte;
 use heim::units::ratio;
-use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 use tokio::fs::OpenOptions;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
+use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 
 use persist_core::error::{Error, PersistError};
-use persist_core::protocol::{ProcessInfo, ProcessSpec, ProcessStatus, ListResponse};
+use persist_core::protocol::{ListResponse, ProcessInfo, ProcessSpec, ProcessStatus};
 
 #[derive(Default)]
 pub struct State {

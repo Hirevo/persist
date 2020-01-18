@@ -2,8 +2,8 @@ use std::path::Path;
 
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
-use tokio_util::codec::{Framed, LinesCodec};
 use tokio::net::UnixStream;
+use tokio_util::codec::{Framed, LinesCodec};
 
 use persist_core::error::Error;
 use persist_core::protocol::*;
