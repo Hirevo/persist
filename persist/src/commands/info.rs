@@ -45,8 +45,8 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     let (cmd, args) = info.cmd.split_first().unwrap();
     table.add_row(row![b -> "Command", format!("{:?}", cmd)]);
     table.add_row(row![b -> "Args", format!("{:?}", args)]);
-    table.add_row(row![b -> "Working dir", info.cwd.display()]);
     table.add_row(row![b -> "Created at", info.created_at.format("%Y-%m-%d %H:%M:%S")]);
+    table.add_row(row![b -> "Working dir", info.cwd.display()]);
     table.add_row(row![b -> "PID file", info.pid_path.display()]);
     table.add_row(row![b -> "Output log file", info.stdout_path.display()]);
     table.add_row(row![b -> "Error log file", info.stderr_path.display()]);
