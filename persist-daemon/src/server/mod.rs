@@ -20,7 +20,16 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
 
     while let Some(frame) = framed.next().await {
         let frame = frame?;
-        let request = json::from_str::<Request>(frame.as_str())?;
+        let request = json::from_str::<Request>(frame.as_str());
+        let request = match request {
+            Ok(request) => request,
+            Err(err) => {
+                let response = Response::Error(err.to_string());
+                let serialized = json::to_string(&response)?;
+                let _ = framed.send(serialized).await;
+                continue;
+            }
+        };
 
         let outcome = match request {
             Request::List(request) => list::handle(state.clone(), &mut framed, request).await,
@@ -30,6 +39,8 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
             Request::Info(request) => info::handle(state.clone(), &mut framed, request).await,
             Request::Delete(request) => delete::handle(state.clone(), &mut framed, request).await,
             Request::Dump(request) => dump::handle(state.clone(), &mut framed, request).await,
+            Request::Restore(request) => restore::handle(state.clone(), &mut framed, request).await,
+            Request::Version => daemon::version::handle(&mut framed).await,
             Request::Kill => std::process::exit(0),
         };
 

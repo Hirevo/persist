@@ -6,33 +6,26 @@ use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
 
 use persist_core::error::Error;
-use persist_core::protocol::{DeleteRequest, DeleteResponse, Response};
+use persist_core::protocol::{Response, RestoreRequest, RestoreResponse};
 
 use crate::server::State;
 
 pub async fn handle(
     state: Arc<State>,
     conn: &mut Framed<UnixStream, LinesCodec>,
-    req: DeleteRequest,
+    req: RestoreRequest,
 ) -> Result<(), Error> {
-    let names = match req.filters {
-        Some(filters) => filters,
-        None => {
-            let future = state.with_handles(|handles| handles.keys().cloned().collect());
-            future.await
-        }
-    };
-
-    let futures = names.into_iter().map(|name| {
+    let futures = req.specs.into_iter().map(|spec| {
         async {
-            let res = state.delete(name.as_str()).await;
+            let name = spec.name.clone();
+            let res = state.clone().start(spec).await;
             let error = res.err().map(|err| err.to_string());
-            DeleteResponse { name, error }
+            RestoreResponse { name, error }
         }
     });
 
     let responses = future::join_all(futures).await;
-    let response = Response::Delete(responses);
+    let response = Response::Restore(responses);
     let serialized = json::to_string(&response)?;
     conn.send(serialized).await?;
 

@@ -54,6 +54,19 @@ pub struct DumpResponse {
     pub spec: ProcessSpec,
 }
 
+/// A response to restore a previously dumped process.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RestoreResponse {
+    pub name: String,
+    pub error: Option<String>,
+}
+
+/// A response to get version information about the daemon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionResponse {
+    pub version: String,
+}
+
 /// A response (from the daemon to a client).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "kebab-case")]
@@ -65,5 +78,7 @@ pub enum Response {
     Info(InfoResponse),
     Delete(Vec<DeleteResponse>),
     Dump(Vec<DumpResponse>),
+    Restore(Vec<RestoreResponse>),
+    Version(VersionResponse),
     Error(String),
 }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::future;
 use futures::sink::SinkExt;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
@@ -17,13 +18,13 @@ pub async fn handle(
     let names = match request.filters {
         Some(names) => names,
         None => {
-            state
-                .with_handles(|handles| handles.keys().cloned().collect())
-                .await
+            let future = state.with_handles(|handles| handles.keys().cloned().collect());
+            future.await
         }
     };
     let updated_env = request.env;
-    let future = futures::future::join_all(names.iter().cloned().map(|name| {
+
+    let futures = names.iter().cloned().map(|name| {
         async {
             let mut spec = state.spec(name).await?;
             if let Some(ref env) = updated_env {
@@ -31,9 +32,10 @@ pub async fn handle(
             }
             state.clone().restart(spec).await
         }
-    }));
-    let results = future.await;
-    let responses = results
+    });
+
+    let responses = future::join_all(futures).await;
+    let responses = responses
         .into_iter()
         .zip(names.into_iter())
         .map(|(res, name)| {

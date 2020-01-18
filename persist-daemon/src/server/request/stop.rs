@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::future;
 use futures::sink::SinkExt;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
@@ -22,15 +23,16 @@ pub async fn handle(
                 .await
         }
     };
-    let future = futures::future::join_all(names.into_iter().map(|name| {
+
+    let futures = names.into_iter().map(|name| {
         async {
             let res = state.stop(name.as_str()).await;
             let error = res.err().map(|err| err.to_string());
             StopResponse { name, error }
         }
-    }));
-    let responses = future.await;
+    });
 
+    let responses = future::join_all(futures).await;
     let response = Response::Stop(responses);
     let serialized = json::to_string(&response)?;
     conn.send(serialized).await?;

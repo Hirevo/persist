@@ -91,9 +91,8 @@ impl State {
     pub async fn list(&self) -> Result<Vec<ListResponse>, Error> {
         let processes = self.processes.lock().await;
 
-        let mut metrics = Vec::with_capacity(processes.len());
-        for (name, (_, handle)) in processes.iter() {
-            let future = async move {
+        let futures = processes.iter().map(|(name, (_, handle))| {
+            async move {
                 let (pid, status, cpu_usage, mem_usage) = if let Some(handle) = handle {
                     let pid = handle.pid();
                     let cpu_usage = {
@@ -120,12 +119,12 @@ impl State {
                     mem_usage,
                     name: name.clone(),
                 })
-            };
-            metrics.push(future);
-        }
+            }
+        });
 
-        let metrics = future::join_all(metrics).await;
-        let metrics = metrics.into_iter().collect::<Result<Vec<_>, _>>()?;
+        let metrics = future::join_all(futures).await;
+        let mut metrics = metrics.into_iter().collect::<Result<Vec<_>, _>>()?;
+        metrics.sort_by(|a, b| a.name.cmp(&b.name));
 
         Ok(metrics)
     }
@@ -226,7 +225,7 @@ impl State {
     pub async fn restart(self: Arc<Self>, spec: ProcessSpec) -> Result<ProcessInfo, Error> {
         let mut processes = self.processes.lock().await;
 
-        let (_, og_handle) = processes
+        let (og_spec, og_handle) = processes
             .get_mut(spec.name.as_str())
             .ok_or(PersistError::ProcessNotFound)?;
 
@@ -256,6 +255,7 @@ impl State {
         tokio::fs::write(spec.pid_path.clone(), pid.to_string()).await?;
 
         let _ = og_handle.replace(handle);
+        *og_spec = spec.clone();
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();

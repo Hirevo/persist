@@ -16,6 +16,8 @@ use crate::format;
 pub enum Opts {
     /// Kill the current daemon (will stop all managed processes)
     Kill,
+    /// Get version information about the current daemon
+    Version,
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
@@ -24,6 +26,13 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
             let mut daemon = self::connect().await?;
             daemon.kill().await?;
             format::success("daemon successfully killed.");
+        }
+        Opts::Version => {
+            let mut daemon = self::connect().await?;
+            let response = daemon.version().await?;
+
+            let message = format!("current daemon's version is {}", response.version);
+            format::success(message);
         }
     }
 

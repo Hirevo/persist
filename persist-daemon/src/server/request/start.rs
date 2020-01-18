@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::future;
 use futures::sink::SinkExt;
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
@@ -21,7 +22,7 @@ pub async fn handle(
     let logs_dir = home_dir.join(LOGS_DIR);
 
     //? ensure they exists
-    let future = futures::future::join(
+    let future = future::join(
         tokio::fs::create_dir(&pids_dir),
         tokio::fs::create_dir(&logs_dir),
     );
@@ -40,7 +41,7 @@ pub async fn handle(
     let stderr_path = logs_dir.join(stderr_path);
 
     //? ensure they exists
-    let future = futures::future::join3(
+    let future = future::join3(
         tokio::fs::File::create(pid_path.as_path()),
         tokio::fs::File::create(stdout_path.as_path()),
         tokio::fs::File::create(stderr_path.as_path()),

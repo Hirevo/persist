@@ -21,16 +21,19 @@ pub enum Opts {
     /// Stop a running process
     Stop(commands::stop::Opts),
     /// Restart a process
+    #[structopt(alias = "reload")]
     Restart(commands::restart::Opts),
     /// Get information about a process
     Info(commands::info::Opts),
     /// Delete an existing process
     Delete(commands::delete::Opts),
     /// List all managed processes
-    #[structopt(name = "list", alias = "ls")]
+    #[structopt(alias = "ls")]
     List(commands::list::Opts),
-    /// Dump the current process configurations
+    /// Dump configurations of currently managed processes
     Dump(commands::dump::Opts),
+    /// Restore previously dumped processes
+    Restore(commands::restore::Opts),
 }
 
 #[tokio::main]
@@ -46,6 +49,7 @@ async fn main() -> Result<(), Error> {
         Opts::Delete(config) => commands::delete::handle(config).await,
         Opts::List(config) => commands::list::handle(config).await,
         Opts::Dump(config) => commands::dump::handle(config).await,
+        Opts::Restore(config) => commands::restore::handle(config).await,
     };
 
     if let Err(err) = outcome {

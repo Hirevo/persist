@@ -29,6 +29,30 @@ impl DaemonClient {
         Ok(())
     }
 
+    pub async fn version(&mut self) -> Result<VersionResponse, Error> {
+        let request = Request::Version;
+        let serialized = json::to_string(&request)?;
+
+        self.socket.send(serialized).await?;
+
+        let response = if let Some(response) = self.socket.next().await {
+            let response = response?;
+            json::from_str::<Response>(response.as_str())?
+        } else {
+            return Err(Error::from(String::from(
+                "daemon closed connection without responding",
+            )));
+        };
+
+        let response = match response {
+            Response::Version(response) => response,
+            Response::Error(err) => return Err(Error::from(err)),
+            _ => return Err(Error::from(String::from("unexpected response from daemon"))),
+        };
+
+        Ok(response)
+    }
+
     pub async fn list(&mut self, request: ListRequest) -> Result<Vec<ListResponse>, Error> {
         let request = Request::List(request);
         let serialized = json::to_string(&request)?;
@@ -193,6 +217,33 @@ impl DaemonClient {
 
         let responses = match response {
             Response::Dump(responses) => responses,
+            Response::Error(err) => return Err(Error::from(err)),
+            _ => return Err(Error::from(String::from("unexpected response from daemon"))),
+        };
+
+        Ok(responses)
+    }
+
+    pub async fn restore(
+        &mut self,
+        request: RestoreRequest,
+    ) -> Result<Vec<RestoreResponse>, Error> {
+        let request = Request::Restore(request);
+        let serialized = json::to_string(&request)?;
+
+        self.socket.send(serialized).await?;
+
+        let response = if let Some(response) = self.socket.next().await {
+            let response = response?;
+            json::from_str::<Response>(response.as_str())?
+        } else {
+            return Err(Error::from(String::from(
+                "daemon closed connection without responding",
+            )));
+        };
+
+        let responses = match response {
+            Response::Restore(responses) => responses,
             Response::Error(err) => return Err(Error::from(err)),
             _ => return Err(Error::from(String::from("unexpected response from daemon"))),
         };

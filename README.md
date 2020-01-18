@@ -26,6 +26,12 @@ persist restart http-server
 # stop managing the process.
 persist delete http-server
 
+# restore the process from the previous dump
+persist restore --all
+
+# stop managing all processes.
+persist delete --all
+
 # stop the background deamon.
 persist daemon kill
 ```
