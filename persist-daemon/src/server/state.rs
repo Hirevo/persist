@@ -91,35 +91,33 @@ impl State {
     pub async fn list(&self) -> Result<Vec<ListResponse>, Error> {
         let processes = self.processes.lock().await;
 
-        let futures = processes.iter().map(|(name, (_, handle))| {
-            async move {
-                let (pid, status, cpu_usage, mem_usage) = if let Some(handle) = handle {
-                    let pid = handle.pid();
-                    let cpu_usage = {
-                        let usage1 = handle.cpu_usage().await?;
-                        tokio::time::delay_for(Duration::from_millis(200)).await;
-                        let usage2 = handle.cpu_usage().await?;
-                        (usage2 - usage1).get::<ratio::percent>()
-                    } as u32;
-                    let mem_usage = handle.memory().await?.rss().get::<byte>();
-                    (
-                        Some(pid as usize),
-                        ProcessStatus::Running,
-                        cpu_usage,
-                        mem_usage as u32,
-                    )
-                } else {
-                    (None, ProcessStatus::Stopped, 0u32, 0u32)
-                };
-
-                Ok::<ListResponse, Error>(ListResponse {
-                    pid,
-                    status,
+        let futures = processes.iter().map(|(name, (_, handle))| async move {
+            let (pid, status, cpu_usage, mem_usage) = if let Some(handle) = handle {
+                let pid = handle.pid();
+                let cpu_usage = {
+                    let usage1 = handle.cpu_usage().await?;
+                    tokio::time::delay_for(Duration::from_millis(200)).await;
+                    let usage2 = handle.cpu_usage().await?;
+                    (usage2 - usage1).get::<ratio::percent>()
+                } as u32;
+                let mem_usage = handle.memory().await?.rss().get::<byte>();
+                (
+                    Some(pid as usize),
+                    ProcessStatus::Running,
                     cpu_usage,
-                    mem_usage,
-                    name: name.clone(),
-                })
-            }
+                    mem_usage as u32,
+                )
+            } else {
+                (None, ProcessStatus::Stopped, 0u32, 0u32)
+            };
+
+            Ok::<ListResponse, Error>(ListResponse {
+                pid,
+                status,
+                cpu_usage,
+                mem_usage,
+                name: name.clone(),
+            })
         });
 
         let metrics = future::join_all(futures).await;

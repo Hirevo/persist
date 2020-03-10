@@ -15,13 +15,11 @@ pub async fn handle(
     conn: &mut Framed<UnixStream, LinesCodec>,
     req: RestoreRequest,
 ) -> Result<(), Error> {
-    let futures = req.specs.into_iter().map(|spec| {
-        async {
-            let name = spec.name.clone();
-            let res = state.clone().start(spec).await;
-            let error = res.err().map(|err| err.to_string());
-            RestoreResponse { name, error }
-        }
+    let futures = req.specs.into_iter().map(|spec| async {
+        let name = spec.name.clone();
+        let res = state.clone().start(spec).await;
+        let error = res.err().map(|err| err.to_string());
+        RestoreResponse { name, error }
     });
 
     let responses = future::join_all(futures).await;

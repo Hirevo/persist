@@ -24,14 +24,12 @@ pub async fn handle(
     };
     let updated_env = request.env;
 
-    let futures = names.iter().cloned().map(|name| {
-        async {
-            let mut spec = state.spec(name).await?;
-            if let Some(ref env) = updated_env {
-                spec.env = env.clone();
-            }
-            state.clone().restart(spec).await
+    let futures = names.iter().cloned().map(|name| async {
+        let mut spec = state.spec(name).await?;
+        if let Some(ref env) = updated_env {
+            spec.env = env.clone();
         }
+        state.clone().restart(spec).await
     });
 
     let responses = future::join_all(futures).await;
