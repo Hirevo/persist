@@ -30,8 +30,14 @@ pub async fn handle(_: Opts) -> Result<(), Error> {
                 ProcessStatus::Running => "running".green().bold(),
                 ProcessStatus::Stopped => "stopped".red().bold(),
             };
-            let cpu_usage = format!("{} %", metric.cpu_usage);
-            let mem_usage = metric.mem_usage.file_size(CONVENTIONAL).unwrap();
+            let cpu_usage = match metric.status {
+                ProcessStatus::Running => format!("{} %", metric.cpu_usage),
+                ProcessStatus::Stopped => "N/A".to_string(),
+            };
+            let mem_usage = match metric.status {
+                ProcessStatus::Running => metric.mem_usage.file_size(CONVENTIONAL).unwrap(),
+                ProcessStatus::Stopped => "N/A".to_string(),
+            };
             let pid = match metric.pid {
                 Some(pid) => pid.to_string(),
                 None => "none".to_string(),
