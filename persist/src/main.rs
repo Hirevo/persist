@@ -30,6 +30,8 @@ pub enum Opts {
     /// List all managed processes
     #[structopt(alias = "ls")]
     List(commands::list::Opts),
+    /// Commands to manage process logs
+    Logs(commands::logs::Opts),
     /// Dump configurations of currently managed processes
     Dump(commands::dump::Opts),
     /// Restore previously dumped processes
@@ -38,18 +40,19 @@ pub enum Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let config = Opts::from_args();
+    let opts = Opts::from_args();
 
-    let outcome = match config {
-        Opts::Daemon(config) => daemon::handle(config).await,
-        Opts::Start(config) => commands::start::handle(config).await,
-        Opts::Stop(config) => commands::stop::handle(config).await,
-        Opts::Restart(config) => commands::restart::handle(config).await,
-        Opts::Info(config) => commands::info::handle(config).await,
-        Opts::Delete(config) => commands::delete::handle(config).await,
-        Opts::List(config) => commands::list::handle(config).await,
-        Opts::Dump(config) => commands::dump::handle(config).await,
-        Opts::Restore(config) => commands::restore::handle(config).await,
+    let outcome = match opts {
+        Opts::Daemon(opts) => daemon::handle(opts).await,
+        Opts::Start(opts) => commands::start::handle(opts).await,
+        Opts::Stop(opts) => commands::stop::handle(opts).await,
+        Opts::Restart(opts) => commands::restart::handle(opts).await,
+        Opts::Info(opts) => commands::info::handle(opts).await,
+        Opts::Delete(opts) => commands::delete::handle(opts).await,
+        Opts::List(opts) => commands::list::handle(opts).await,
+        Opts::Logs(opts) => commands::logs::handle(opts).await,
+        Opts::Dump(opts) => commands::dump::handle(opts).await,
+        Opts::Restore(opts) => commands::restore::handle(opts).await,
     };
 
     if let Err(err) = outcome {

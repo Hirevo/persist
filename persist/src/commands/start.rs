@@ -13,9 +13,9 @@ use crate::format;
 pub struct Opts {
     /// The name to give the process, to refer to it later
     #[structopt(long)]
-    name: Option<String>,
+    pub name: Option<String>,
     /// The command to launch
-    command: Vec<String>,
+    pub command: Vec<String>,
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {

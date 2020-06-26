@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::ProcessSpec;
+use crate::protocol::{LogStreamSource, ProcessSpec};
 
 /// A request to start managing a new process.
 ///
@@ -60,6 +60,15 @@ pub struct RestoreRequest {
     pub specs: Vec<ProcessSpec>,
 }
 
+/// A request to restore processes from a previously generated dump.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogsRequest {
+    pub processes: Vec<String>,
+    pub source_filter: Option<LogStreamSource>,
+    pub stream: bool,
+    pub lines: usize,
+}
+
 /// A request (from a client to the daemon).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "kebab-case")]
@@ -72,6 +81,7 @@ pub enum Request {
     Delete(DeleteRequest),
     Dump(DumpRequest),
     Restore(RestoreRequest),
+    Logs(LogsRequest),
     Version,
     Kill,
 }

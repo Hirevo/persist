@@ -59,3 +59,12 @@ pub struct ProcessInfo {
     pub stderr_path: PathBuf,
     pub created_at: chrono::NaiveDateTime,
 }
+
+/// The log stream source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogStreamSource {
+    /// Standard output stream.
+    Stdout,
+    /// Standard error stream.
+    Stderr,
+}

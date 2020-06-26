@@ -1,25 +1,24 @@
 use std::collections::HashMap;
-use std::process::Stdio;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future;
-use futures::sink::SinkExt;
-use futures::stream::StreamExt;
-use heim::process::Process;
+use futures::stream::{Stream, StreamExt};
 use heim::units::information::byte;
 use heim::units::ratio;
-use tokio::fs::OpenOptions;
-use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
-use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 
 use persist_core::error::{Error, PersistError};
-use persist_core::protocol::{ListResponse, ProcessInfo, ProcessSpec, ProcessStatus};
+use persist_core::protocol::{
+    ListResponse, LogEntry, LogStreamSource, ProcessInfo, ProcessSpec, ProcessStatus,
+};
+
+use crate::server::handle::ProcessHandle;
 
 #[derive(Default)]
 pub struct State {
-    processes: Mutex<HashMap<String, (ProcessSpec, Option<Process>)>>,
+    processes: Mutex<HashMap<String, ProcessHandle>>,
 }
 
 impl State {
@@ -35,7 +34,7 @@ impl State {
         let processes = self.processes.lock().await;
         processes
             .get(name.as_ref())
-            .map(|(spec, _)| spec.clone())
+            .map(|handle| handle.spec().clone())
             .ok_or_else(|| Error::from(PersistError::ProcessNotFound))
     }
 
@@ -44,7 +43,7 @@ impl State {
     /// This closure is executed while holding a lock, so avoid calling other methods on `State` inside that closure.
     pub async fn with_handles<F, T>(&self, f: F) -> T
     where
-        F: FnOnce(&HashMap<String, (ProcessSpec, Option<Process>)>) -> T,
+        F: FnOnce(&HashMap<String, ProcessHandle>) -> T,
     {
         let processes = self.processes.lock().await;
 
@@ -54,10 +53,10 @@ impl State {
     /// Executes a closure and provides it the process handle of the specified process.
     ///
     /// This closure is executed while holding a lock, so avoid calling other methods on `State` inside that closure.
-    pub async fn with_handle<S, F, T>(&self, name: S, f: F) -> Result<T, Error>
+    pub async fn with_handle<S, F, T>(&self, name: S, func: F) -> Result<T, Error>
     where
         S: AsRef<str>,
-        F: FnOnce(&(ProcessSpec, Option<Process>)) -> T,
+        F: FnOnce(&ProcessHandle) -> T,
     {
         let processes = self.processes.lock().await;
 
@@ -65,51 +64,33 @@ impl State {
             .get(name.as_ref())
             .ok_or(PersistError::ProcessNotFound)?;
 
-        Ok(f(handle))
-    }
-
-    /// Spawns a new process according to the given spec, returning the child handle.
-    ///
-    /// It nullifies stdin and captures stdout and stderr.
-    async fn spawn(&self, spec: ProcessSpec) -> Result<Child, Error> {
-        let (cmd, args) = spec.cmd.split_first().expect("empty command");
-        let envs = spec.env.clone();
-
-        let child = Command::new(cmd)
-            .args(args)
-            .env_clear()
-            .envs(envs)
-            .current_dir(spec.cwd.as_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-
-        Ok(child)
+        Ok(func(handle))
     }
 
     pub async fn list(&self) -> Result<Vec<ListResponse>, Error> {
         let processes = self.processes.lock().await;
 
-        let futures = processes.iter().map(|(name, (_, handle))| async move {
-            let (pid, status, cpu_usage, mem_usage) = if let Some(handle) = handle {
-                let pid = handle.pid();
-                let cpu_usage = {
-                    let usage1 = handle.cpu_usage().await?;
-                    tokio::time::delay_for(Duration::from_millis(200)).await;
-                    let usage2 = handle.cpu_usage().await?;
-                    (usage2 - usage1).get::<ratio::percent>()
-                } as u32;
-                let mem_usage = handle.memory().await?.rss().get::<byte>();
-                (
-                    Some(pid as usize),
-                    ProcessStatus::Running,
-                    cpu_usage,
-                    mem_usage as u32,
-                )
-            } else {
-                (None, ProcessStatus::Stopped, 0u32, 0u32)
-            };
+        let futures = processes.iter().map(|(name, handle)| async move {
+            let (pid, status, cpu_usage, mem_usage) = handle
+                .with_process(|handle| async move {
+                    let pid = handle.pid();
+                    let cpu_usage = {
+                        let usage1 = handle.cpu_usage().await?;
+                        tokio::time::delay_for(Duration::from_millis(200)).await;
+                        let usage2 = handle.cpu_usage().await?;
+                        (usage2 - usage1).get::<ratio::percent>()
+                    } as u32;
+                    let mem_usage = handle.memory().await?.rss().get::<byte>();
+
+                    Ok::<_, Error>((
+                        Some(pid as usize),
+                        ProcessStatus::Running,
+                        cpu_usage,
+                        mem_usage as u32,
+                    ))
+                })
+                .await
+                .unwrap_or_else(|| Ok((None, ProcessStatus::Stopped, 0u32, 0u32)))?;
 
             Ok::<ListResponse, Error>(ListResponse {
                 pid,
@@ -134,55 +115,21 @@ impl State {
             return Err(Error::from(PersistError::ProcessAlreadyExists));
         }
 
-        let stdout_sink = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&spec.stdout_path)
-            .await?;
-        let mut stdout_sink = FramedWrite::new(stdout_sink, LinesCodec::new());
+        processes.insert(spec.name.clone(), ProcessHandle::new(spec.clone()));
+        let handle = processes.get_mut(&spec.name).unwrap();
 
-        let stderr_sink = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&spec.stderr_path)
-            .await?;
-        let mut stderr_sink = FramedWrite::new(stderr_sink, LinesCodec::new());
+        let future = handle.start().await?;
 
-        let mut child = self.spawn(spec.clone()).await?;
-
-        let pid = child.id();
-        let handle = heim::process::get(pid as i32).await?;
-
-        tokio::fs::write(spec.pid_path.clone(), pid.to_string()).await?;
-
-        processes.insert(spec.name.clone(), (spec.clone(), Some(handle)));
-
-        let stdout = child.stdout.take().expect("failed to capture stdout");
-        let stderr = child.stderr.take().expect("failed to capture stderr");
-        let mut stdout = FramedRead::new(stdout, LinesCodec::new());
-        let mut stderr = FramedRead::new(stderr, LinesCodec::new());
-
-        tokio::spawn(async move {
-            while let Some(Ok(line)) = stdout.next().await {
-                let _ = stdout_sink.send(line).await;
-            }
-        });
-        tokio::spawn(async move {
-            while let Some(Ok(line)) = stderr.next().await {
-                let _ = stderr_sink.send(line).await;
-            }
-        });
-
-        let name = spec.name.clone();
+        let name = handle.name().to_string();
+        let pid = handle.pid().unwrap();
         let cloned_self = self.clone();
         tokio::spawn(async move {
-            let pid = child.id() as i32;
-            let _ = child.await;
+            let _ = future.await;
             let mut processes = cloned_self.processes.lock().await;
-            if let Some((_, handle)) = processes.get_mut(&name) {
-                match handle {
-                    Some(inner) if pid == inner.pid() => {
-                        let _ = handle.take();
+            if let Some(handle) = processes.get_mut(name.as_str()) {
+                match &mut handle.process {
+                    Some(inner) if pid == (inner.pid() as usize) => {
+                        let _ = handle.process.take();
                         // TODO: restart process ?
                     }
                     _ => {}
@@ -195,7 +142,7 @@ impl State {
             cmd: spec.cmd,
             cwd: spec.cwd,
             env: spec.env,
-            pid: Some(pid as usize),
+            pid: Some(pid),
             status: ProcessStatus::Running,
             created_at: spec.created_at,
             pid_path: spec.pid_path,
@@ -209,13 +156,11 @@ impl State {
     pub async fn stop(&self, name: impl AsRef<str>) -> Result<(), Error> {
         let mut processes = self.processes.lock().await;
 
-        let (_, child) = processes
+        let handle = processes
             .get_mut(name.as_ref())
             .ok_or(PersistError::ProcessNotFound)?;
 
-        if let Some(child) = child.take() {
-            let _ = child.terminate().await;
-        }
+        handle.stop().await?;
 
         Ok(())
     }
@@ -223,64 +168,22 @@ impl State {
     pub async fn restart(self: Arc<Self>, spec: ProcessSpec) -> Result<ProcessInfo, Error> {
         let mut processes = self.processes.lock().await;
 
-        let (og_spec, og_handle) = processes
+        let handle = processes
             .get_mut(spec.name.as_str())
             .ok_or(PersistError::ProcessNotFound)?;
 
-        if let Some(child) = og_handle.take() {
-            let _ = child.terminate().await;
-        }
+        let future = handle.restart_with_spec(spec.clone()).await?;
 
-        let stdout_sink = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&spec.stdout_path)
-            .await?;
-        let mut stdout_sink = FramedWrite::new(stdout_sink, LinesCodec::new());
-
-        let stderr_sink = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&spec.stderr_path)
-            .await?;
-        let mut stderr_sink = FramedWrite::new(stderr_sink, LinesCodec::new());
-
-        let mut child = self.spawn(spec.clone()).await?;
-
-        let pid = child.id();
-        let handle = heim::process::get(pid as i32).await?;
-
-        tokio::fs::write(spec.pid_path.clone(), pid.to_string()).await?;
-
-        let _ = og_handle.replace(handle);
-        *og_spec = spec.clone();
-
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
-        let mut stdout = FramedRead::new(stdout, LinesCodec::new());
-        let mut stderr = FramedRead::new(stderr, LinesCodec::new());
-
-        tokio::spawn(async move {
-            while let Some(Ok(line)) = stdout.next().await {
-                let _ = stdout_sink.send(line).await;
-            }
-        });
-        tokio::spawn(async move {
-            while let Some(Ok(line)) = stderr.next().await {
-                let _ = stderr_sink.send(line).await;
-            }
-        });
-
-        let name = spec.name.clone();
+        let name = handle.name().to_string();
+        let pid = handle.pid().unwrap();
         let cloned_self = self.clone();
         tokio::spawn(async move {
-            let pid = child.id() as i32;
-            let _ = child.await;
+            let _ = future.await;
             let mut processes = cloned_self.processes.lock().await;
-            if let Some((_, handle)) = processes.get_mut(name.as_str()) {
-                match handle {
-                    Some(inner) if pid == inner.pid() => {
-                        let _ = handle.take();
+            if let Some(handle) = processes.get_mut(name.as_str()) {
+                match &mut handle.process {
+                    Some(inner) if pid == (inner.pid() as usize) => {
+                        let _ = handle.process.take();
                         // TODO: restart process ?
                     }
                     _ => {}
@@ -293,7 +196,7 @@ impl State {
             cmd: spec.cmd.clone(),
             cwd: spec.cwd.clone(),
             env: spec.env.clone(),
-            pid: Some(pid as usize),
+            pid: Some(pid),
             status: ProcessStatus::Running,
             created_at: spec.created_at,
             pid_path: spec.pid_path.clone(),
@@ -307,13 +210,11 @@ impl State {
     pub async fn delete(&self, name: impl AsRef<str>) -> Result<(), Error> {
         let mut processes = self.processes.lock().await;
 
-        let (_, handle) = processes
+        let mut handle = processes
             .remove(name.as_ref())
             .ok_or(PersistError::ProcessNotFound)?;
 
-        if let Some(child) = handle {
-            let _ = child.terminate().await;
-        }
+        handle.stop().await?;
 
         Ok(())
     }
@@ -325,14 +226,101 @@ impl State {
             Some(filters) => processes
                 .iter()
                 .filter(|(name, _)| filters.contains(name))
-                .map(|(_, (spec, _))| spec.clone())
+                .map(|(_, handle)| handle.spec().clone())
                 .collect(),
             None => processes
                 .iter()
-                .map(|(_, (spec, _))| spec.clone())
+                .map(|(_, handle)| handle.spec().clone())
                 .collect(),
         };
 
         Ok(specs)
+    }
+
+    pub async fn logs(
+        &self,
+        names: Vec<String>,
+        lines: usize,
+        stream: bool,
+    ) -> Result<impl Stream<Item = LogEntry>, Error> {
+        let processes = self.processes.lock().await;
+
+        let streams = future::try_join_all(
+            names
+                .into_iter()
+                .filter_map(|name| processes.get(&name))
+                .map(|handle| async move {
+                    let stdout_init = match lines {
+                        0 => futures::stream::iter(Vec::new().into_iter().rev()),
+                        lines => {
+                            let contents = tokio::fs::read_to_string(handle.stdout_file()).await?;
+                            let lines = contents
+                                .split('\n')
+                                .rev()
+                                .skip(1)
+                                .take(lines)
+                                .map(String::from)
+                                .collect::<Vec<_>>();
+                            futures::stream::iter(lines.into_iter().rev())
+                        }
+                    };
+
+                    let stderr_init = match lines {
+                        0 => futures::stream::iter(Vec::new().into_iter().rev()),
+                        lines => {
+                            let contents = tokio::fs::read_to_string(handle.stderr_file()).await?;
+                            let lines = contents
+                                .split('\n')
+                                .rev()
+                                .skip(1)
+                                .take(lines)
+                                .map(String::from)
+                                .collect::<Vec<_>>();
+                            futures::stream::iter(lines.into_iter().rev())
+                        }
+                    };
+
+                    if stream {
+                        let name = handle.name().to_string();
+                        let stdout = stdout_init.chain(handle.stdout()).map(move |msg| LogEntry {
+                            msg,
+                            name: name.clone(),
+                            source: LogStreamSource::Stdout,
+                        });
+
+                        let name = handle.name().to_string();
+                        let stderr = stderr_init.chain(handle.stderr()).map(move |msg| LogEntry {
+                            msg,
+                            name: name.clone(),
+                            source: LogStreamSource::Stderr,
+                        });
+
+                        Ok::<Pin<Box<dyn Stream<Item = LogEntry> + Send>>, Error>(Box::pin(
+                            futures::stream::select(stdout, stderr),
+                        ))
+                    } else {
+                        let name = handle.name().to_string();
+                        let stdout = stdout_init.map(move |msg| LogEntry {
+                            msg,
+                            name: name.clone(),
+                            source: LogStreamSource::Stdout,
+                        });
+
+                        let name = handle.name().to_string();
+                        let stderr = stderr_init.map(move |msg| LogEntry {
+                            msg,
+                            name: name.clone(),
+                            source: LogStreamSource::Stderr,
+                        });
+
+                        Ok::<Pin<Box<dyn Stream<Item = LogEntry> + Send>>, Error>(Box::pin(
+                            futures::stream::select(stdout, stderr),
+                        ))
+                    }
+                }),
+        )
+        .await?;
+
+        Ok(futures::stream::select_all(streams))
     }
 }

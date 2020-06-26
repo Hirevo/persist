@@ -5,6 +5,7 @@ use futures::stream::StreamExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio_util::codec::{Framed, LinesCodec};
 
+pub mod handle;
 pub mod request;
 pub mod state;
 
@@ -37,6 +38,7 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
             Request::Stop(request) => stop::handle(state.clone(), &mut framed, request).await,
             Request::Restart(request) => restart::handle(state.clone(), &mut framed, request).await,
             Request::Info(request) => info::handle(state.clone(), &mut framed, request).await,
+            Request::Logs(request) => logs::handle(state.clone(), &mut framed, request).await,
             Request::Delete(request) => delete::handle(state.clone(), &mut framed, request).await,
             Request::Dump(request) => dump::handle(state.clone(), &mut framed, request).await,
             Request::Restore(request) => restore::handle(state.clone(), &mut framed, request).await,
