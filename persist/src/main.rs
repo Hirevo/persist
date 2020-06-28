@@ -30,7 +30,7 @@ pub enum Opts {
     /// List all managed processes
     #[structopt(alias = "ls")]
     List(commands::list::Opts),
-    /// Commands to manage process logs
+    /// Access process logs
     Logs(commands::logs::Opts),
     /// Dump configurations of currently managed processes
     Dump(commands::dump::Opts),

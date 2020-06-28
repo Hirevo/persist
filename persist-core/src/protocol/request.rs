@@ -63,7 +63,7 @@ pub struct RestoreRequest {
 /// A request to restore processes from a previously generated dump.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogsRequest {
-    pub processes: Vec<String>,
+    pub filters: Option<Vec<String>>,
     pub source_filter: Option<LogStreamSource>,
     pub stream: bool,
     pub lines: usize,

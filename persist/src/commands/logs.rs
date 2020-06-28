@@ -13,6 +13,9 @@ pub struct Opts {
     /// The names of the processes to get logs for
     #[structopt(name = "process-name")]
     pub processes: Vec<String>,
+    /// Get logs from all the processes
+    #[structopt(long)]
+    pub all: bool,
     /// The number of previous log lines to initially output
     #[structopt(long, short = "n", default_value = "10")]
     pub lines: usize,
@@ -22,8 +25,18 @@ pub struct Opts {
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
+    let filters = match (opts.all, opts.processes) {
+        (false, processes) if processes.is_empty() => {
+            return Err(Error::from(String::from(
+                "you must specify at least one process name or --all",
+            )));
+        }
+        (false, processes) => Some(processes),
+        (true, _) => None,
+    };
+
     let request = LogsRequest {
-        processes: opts.processes,
+        filters,
         stream: !opts.no_stream,
         lines: opts.lines,
         source_filter: None,

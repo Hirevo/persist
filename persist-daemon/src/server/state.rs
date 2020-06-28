@@ -239,17 +239,17 @@ impl State {
 
     pub async fn logs(
         &self,
-        names: Vec<String>,
+        filters: Option<Vec<String>>,
         lines: usize,
         stream: bool,
     ) -> Result<impl Stream<Item = LogEntry>, Error> {
         let processes = self.processes.lock().await;
 
         let streams = future::try_join_all(
-            names
-                .into_iter()
-                .filter_map(|name| processes.get(&name))
-                .map(|handle| async move {
+            processes
+                .iter()
+                .filter(|(name, _)| filters.as_ref().map_or(true, |names| names.contains(name)))
+                .map(|(_, handle)| async move {
                     let stdout_init = match lines {
                         0 => futures::stream::iter(Vec::new().into_iter().rev()),
                         lines => {
