@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::pin::Pin;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,6 +9,7 @@ use heim::units::information::byte;
 use heim::units::ratio;
 use tokio::sync::Mutex;
 
+use persist_core::daemon::{LOGS_DIR, PIDS_DIR};
 use persist_core::error::{Error, PersistError};
 use persist_core::protocol::{
     ListResponse, LogEntry, LogStreamSource, ProcessInfo, ProcessSpec, ProcessStatus,
@@ -251,7 +252,7 @@ impl State {
                 .filter(|(name, _)| filters.as_ref().map_or(true, |names| names.contains(name)))
                 .map(|(_, handle)| async move {
                     let stdout_init = match lines {
-                        0 => futures::stream::iter(Vec::new().into_iter().rev()),
+                        0 => futures::stream::empty().right_stream(),
                         lines => {
                             let contents = tokio::fs::read_to_string(handle.stdout_file()).await?;
                             let lines = contents
@@ -261,12 +262,12 @@ impl State {
                                 .take(lines)
                                 .map(String::from)
                                 .collect::<Vec<_>>();
-                            futures::stream::iter(lines.into_iter().rev())
+                            futures::stream::iter(lines.into_iter().rev()).left_stream()
                         }
                     };
 
                     let stderr_init = match lines {
-                        0 => futures::stream::iter(Vec::new().into_iter().rev()),
+                        0 => futures::stream::empty().right_stream(),
                         lines => {
                             let contents = tokio::fs::read_to_string(handle.stderr_file()).await?;
                             let lines = contents
@@ -276,7 +277,7 @@ impl State {
                                 .take(lines)
                                 .map(String::from)
                                 .collect::<Vec<_>>();
-                            futures::stream::iter(lines.into_iter().rev())
+                            futures::stream::iter(lines.into_iter().rev()).left_stream()
                         }
                     };
 
@@ -295,8 +296,8 @@ impl State {
                             source: LogStreamSource::Stderr,
                         });
 
-                        Ok::<Pin<Box<dyn Stream<Item = LogEntry> + Send>>, Error>(Box::pin(
-                            futures::stream::select(stdout, stderr),
+                        Ok::<_, Error>(Box::pin(
+                            futures::stream::select(stdout, stderr).right_stream(),
                         ))
                     } else {
                         let name = handle.name().to_string();
@@ -313,8 +314,8 @@ impl State {
                             source: LogStreamSource::Stderr,
                         });
 
-                        Ok::<Pin<Box<dyn Stream<Item = LogEntry> + Send>>, Error>(Box::pin(
-                            futures::stream::select(stdout, stderr),
+                        Ok::<_, Error>(Box::pin(
+                            futures::stream::select(stdout, stderr).left_stream(),
                         ))
                     }
                 }),
@@ -322,5 +323,50 @@ impl State {
         .await?;
 
         Ok(futures::stream::select_all(streams))
+    }
+
+    pub async fn prune(&self, stopped: bool) -> Result<Vec<String>, Error> {
+        let processes = self.processes.lock().await;
+
+        let mut pruned_files = Vec::new();
+        let expected_files: Vec<PathBuf> = processes
+            .values()
+            .filter(|handle| !stopped || (stopped && handle.status() == ProcessStatus::Running))
+            .flat_map(|handle| {
+                let fst = std::iter::once(PathBuf::from(handle.pid_file()));
+                let snd = std::iter::once(PathBuf::from(handle.stdout_file()));
+                let trd = std::iter::once(PathBuf::from(handle.stderr_file()));
+                fst.chain(snd).chain(trd)
+            })
+            .collect();
+
+        let (logs, pids) =
+            future::join(tokio::fs::read_dir(LOGS_DIR), tokio::fs::read_dir(PIDS_DIR)).await;
+
+        // We kind-of ignore errors because the logs and pids directories are only created
+        // upon the first process start-up, so it can legitimately not be there yet.
+        let mut stream = match (logs, pids) {
+            (Ok(logs), Ok(pids)) => logs.chain(pids).left_stream(),
+            (Ok(logs), Err(_)) => logs.right_stream(),
+            (Err(_), Ok(pids)) => pids.right_stream(),
+            (Err(_), Err(_)) => return Ok(pruned_files),
+        };
+
+        while let Some(dirent) = stream.next().await.transpose()? {
+            // Ignore non-regular files (like directories).
+            let kind = dirent.file_type().await?;
+            if !kind.is_file() {
+                continue;
+            }
+
+            let path = dirent.path().canonicalize()?;
+            if !expected_files.contains(&path) {
+                if let Ok(_) = tokio::fs::remove_file(&path).await {
+                    pruned_files.push(path.display().to_string());
+                }
+            }
+        }
+
+        Ok(pruned_files)
     }
 }

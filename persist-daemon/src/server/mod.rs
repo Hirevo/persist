@@ -42,6 +42,7 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
             Request::Delete(request) => delete::handle(state.clone(), &mut framed, request).await,
             Request::Dump(request) => dump::handle(state.clone(), &mut framed, request).await,
             Request::Restore(request) => restore::handle(state.clone(), &mut framed, request).await,
+            Request::Prune(request) => prune::handle(state.clone(), &mut framed, request).await,
             Request::Version => daemon::version::handle(&mut framed).await,
             Request::Kill => std::process::exit(0),
         };

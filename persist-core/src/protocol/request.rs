@@ -68,6 +68,12 @@ pub struct LogsRequest {
     pub stream: bool,
     pub lines: usize,
 }
+/// A request to prune logs and pid files of unmanaged and/or stopped processes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PruneRequest {
+    /// Prune files from stopped, but still managed, processes.
+    pub stopped: bool,
+}
 
 /// A request (from a client to the daemon).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +88,7 @@ pub enum Request {
     Dump(DumpRequest),
     Restore(RestoreRequest),
     Logs(LogsRequest),
+    Prune(PruneRequest),
     Version,
     Kill,
 }

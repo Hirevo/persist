@@ -36,6 +36,8 @@ pub enum Opts {
     Dump(commands::dump::Opts),
     /// Restore previously dumped processes
     Restore(commands::restore::Opts),
+    /// Prune outdated process logs and pid files
+    Prune(commands::prune::Opts),
 }
 
 #[tokio::main]
@@ -53,6 +55,7 @@ async fn main() -> Result<(), Error> {
         Opts::Logs(opts) => commands::logs::handle(opts).await,
         Opts::Dump(opts) => commands::dump::handle(opts).await,
         Opts::Restore(opts) => commands::restore::handle(opts).await,
+        Opts::Prune(opts) => commands::prune::handle(opts).await,
     };
 
     if let Err(err) = outcome {

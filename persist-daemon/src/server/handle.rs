@@ -52,6 +52,10 @@ impl ProcessHandle {
         self.process.as_ref().map(|handle| handle.pid() as usize)
     }
 
+    pub fn pid_file(&self) -> &Path {
+        self.spec.pid_path.as_path()
+    }
+
     pub fn stdout_file(&self) -> &Path {
         self.spec.stdout_path.as_path()
     }
