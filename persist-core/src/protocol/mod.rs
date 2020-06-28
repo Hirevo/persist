@@ -62,6 +62,7 @@ pub struct ProcessInfo {
 
 /// The log stream source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum LogStreamSource {
     /// Standard output stream.
     Stdout,
