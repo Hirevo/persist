@@ -6,7 +6,6 @@ use futures::sink::SinkExt;
 use futures::stream;
 use futures::stream::{Stream, StreamExt};
 use heim::process::Process;
-use pin_utils::pin_mut;
 use tokio::fs::OpenOptions;
 use tokio::process::Command;
 use tokio::sync::broadcast;
@@ -122,33 +121,21 @@ impl ProcessHandle {
         let mut stdout = FramedRead::new(stdout, LinesCodec::new());
         let mut stderr = FramedRead::new(stderr, LinesCodec::new());
 
-        let receiver = self.stdout();
-        tokio::spawn(async move {
-            pin_mut!(receiver);
-            while let Some(item) = receiver.next().await {
-                let _ = stdout_sink.send(item).await;
-            }
-        });
         let sender = self.stdout.clone();
         tokio::spawn(async move {
             while let Some(item) = stdout.next().await {
                 if let Ok(item) = item {
+                    let _ = stdout_sink.send(item.clone()).await;
                     let _ = sender.send(item);
                 }
             }
         });
 
-        let receiver = self.stderr();
-        tokio::spawn(async move {
-            pin_mut!(receiver);
-            while let Some(item) = receiver.next().await {
-                let _ = stderr_sink.send(item).await;
-            }
-        });
         let sender = self.stderr.clone();
         tokio::spawn(async move {
             while let Some(item) = stderr.next().await {
                 if let Ok(item) = item {
+                    let _ = stderr_sink.send(item.clone()).await;
                     let _ = sender.send(item);
                 }
             }
