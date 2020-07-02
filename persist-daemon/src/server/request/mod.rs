@@ -4,6 +4,7 @@ pub mod dump;
 pub mod info;
 pub mod list;
 pub mod logs;
+pub mod prune;
 pub mod restart;
 pub mod restore;
 pub mod start;

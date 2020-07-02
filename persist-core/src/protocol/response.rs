@@ -87,6 +87,13 @@ pub enum LogsResponse {
     Unsubscribed,
 }
 
+/// A response to prune unused log files.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PruneResponse {
+    /// List of the names of all the successfully pruned files.
+    pub pruned_files: Vec<String>,
+}
+
 /// A response (from the daemon to a client).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "kebab-case")]
@@ -101,5 +108,6 @@ pub enum Response {
     Restore(Vec<RestoreResponse>),
     Version(VersionResponse),
     Logs(LogsResponse),
+    Prune(PruneResponse),
     Error(String),
 }
