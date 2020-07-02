@@ -17,7 +17,7 @@ pub struct Opts {
     pub processes: Vec<String>,
     /// Update the processes' environments with the current one
     #[structopt(long)]
-    update_env: bool,
+    pub update_env: bool,
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {

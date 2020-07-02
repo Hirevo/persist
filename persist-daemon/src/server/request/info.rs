@@ -5,7 +5,7 @@ use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
 
 use persist_core::error::Error;
-use persist_core::protocol::{InfoRequest, InfoResponse, ProcessInfo, ProcessStatus, Response};
+use persist_core::protocol::{InfoRequest, InfoResponse, ProcessInfo, Response};
 
 use crate::server::State;
 
@@ -15,15 +15,11 @@ pub async fn handle(
     req: InfoRequest,
 ) -> Result<(), Error> {
     let info = state
-        .with_handle(req.name, |(spec, handle)| {
-            let (status, pid) = match handle {
-                Some(handle) => (ProcessStatus::Running, Some(handle.pid() as usize)),
-                None => (ProcessStatus::Stopped, None),
-            };
-
+        .with_handle(req.name, |handle| {
+            let spec = handle.spec();
             ProcessInfo {
-                pid,
-                status,
+                pid: handle.pid(),
+                status: handle.status(),
                 name: spec.name.clone(),
                 cmd: spec.cmd.clone(),
                 cwd: spec.cwd.clone(),

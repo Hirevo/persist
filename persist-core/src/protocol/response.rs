@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{ProcessInfo, ProcessSpec, ProcessStatus};
+use crate::protocol::{LogStreamSource, ProcessInfo, ProcessSpec, ProcessStatus};
 
 /// A response to list information and metrics about managed processes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +67,26 @@ pub struct VersionResponse {
     pub version: String,
 }
 
+/// A log entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LogEntry {
+    /// Name of the originating process.
+    pub name: String,
+    /// Source stream of this log entry (stdout or stderr).
+    pub source: LogStreamSource,
+    /// The actual log message.
+    pub msg: String,
+}
+
+/// A response for log entries (from the daemon to a client).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "kebab-case")]
+pub enum LogsResponse {
+    Subscribed,
+    Entry(LogEntry),
+    Unsubscribed,
+}
+
 /// A response (from the daemon to a client).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "kebab-case")]
@@ -80,5 +100,6 @@ pub enum Response {
     Dump(Vec<DumpResponse>),
     Restore(Vec<RestoreResponse>),
     Version(VersionResponse),
+    Logs(LogsResponse),
     Error(String),
 }

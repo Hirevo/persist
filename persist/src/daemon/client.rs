@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use futures::sink::SinkExt;
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt};
 use tokio::net::UnixStream;
 use tokio_util::codec::{Framed, LinesCodec};
 
@@ -198,6 +198,46 @@ impl DaemonClient {
         };
 
         Ok(response)
+    }
+
+    pub async fn logs<'a>(
+        &'a mut self,
+        request: LogsRequest,
+    ) -> Result<impl Stream<Item = Result<LogsResponse, Error>> + 'a, Error> {
+        let request = Request::Logs(request);
+        let serialized = json::to_string(&request)?;
+
+        self.socket.send(serialized).await?;
+
+        let response = if let Some(response) = self.socket.next().await {
+            let response = response?;
+            json::from_str::<Response>(response.as_str())?
+        } else {
+            return Err(Error::from(String::from(
+                "daemon closed connection without responding",
+            )));
+        };
+
+        match response {
+            Response::Logs(LogsResponse::Subscribed) => {}
+            Response::Error(err) => return Err(Error::from(err)),
+            _ => return Err(Error::from(String::from("unexpected response from daemon"))),
+        };
+
+        let stream = self.socket.by_ref().map(|item| {
+            let line = item?;
+            let response = json::from_str::<Response>(line.as_str())?;
+
+            let response = match response {
+                Response::Logs(response) => response,
+                Response::Error(err) => return Err(Error::from(err)),
+                _ => return Err(Error::from(String::from("unexpected response from daemon"))),
+            };
+
+            Ok(response)
+        });
+
+        Ok(stream)
     }
 
     pub async fn dump(&mut self, request: DumpRequest) -> Result<Vec<DumpResponse>, Error> {

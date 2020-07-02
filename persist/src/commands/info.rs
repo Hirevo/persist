@@ -13,7 +13,7 @@ use crate::daemon;
 pub struct Opts {
     /// The name of the process to get information about
     #[structopt(name = "process-name")]
-    name: String,
+    pub name: String,
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
@@ -31,18 +31,19 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
         .build();
     table.set_format(table_fmt);
 
-    table.add_row(row![b -> "Name", info.name]);
     let status = match info.status {
         ProcessStatus::Running => "running".green().bold(),
         ProcessStatus::Stopped => "stopped".red().bold(),
     };
-    table.add_row(row![b -> "Status", status]);
     let pid = match info.pid {
         Some(pid) => pid.to_string(),
         None => "none".to_string(),
     };
-    table.add_row(row![b -> "PID", pid]);
     let (cmd, args) = info.cmd.split_first().unwrap();
+
+    table.add_row(row![b -> "Name", info.name]);
+    table.add_row(row![b -> "Status", status]);
+    table.add_row(row![b -> "PID", pid]);
     table.add_row(row![b -> "Command", format!("{:?}", cmd)]);
     table.add_row(row![b -> "Args", format!("{:?}", args)]);
     table.add_row(row![b -> "Created at", info.created_at.format("%Y-%m-%d %H:%M:%S")]);
