@@ -1,3 +1,5 @@
+use std::env;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use colored::Colorize;
@@ -56,7 +58,7 @@ pub async fn connect() -> Result<DaemonClient, Error> {
             let mut cur_exe = std::env::current_exe()?;
             cur_exe.set_file_name("persist-daemon");
 
-            let _ = tokio::fs::create_dir_all(&home_dir);
+            let _ = tokio::fs::create_dir_all(&home_dir).await;
 
             // Spawn the daemon.
             // (it is ok to await on it, because it should fork to daemonize early anyway).
@@ -76,4 +78,46 @@ pub async fn connect() -> Result<DaemonClient, Error> {
     };
 
     Ok(client)
+}
+
+pub async fn init() -> Result<(), Error> {
+    let dir = env::var("PERSIST_HOME")
+        .map(PathBuf::from)
+        .or_else(|_| env::current_dir().map(|path| path.join(".persist")))?;
+    let socket_path = dir.join(SOCK_FILE);
+
+    format::info(format!(
+        "considering installing daemon for: {}",
+        format::format_path(&dir).bold(),
+    ));
+
+    // if daemon doesn't exists, spawn it.
+    match DaemonClient::new(&socket_path).await {
+        Ok(_) => {
+            format::error("a live daemon is already controlling this location");
+        }
+        Err(_) => {
+            format::info("location is unoccupied, spawning daemon...");
+            let mut cur_exe = std::env::current_exe()?;
+            cur_exe.set_file_name("persist-daemon");
+
+            let _ = tokio::fs::create_dir_all(&dir).await;
+
+            // Spawn the daemon.
+            // (it is ok to await on it, because it should fork to daemonize early anyway).
+            let _ = Command::new(cur_exe)
+                .arg("start")
+                .current_dir(dir)
+                .spawn()?
+                .await?;
+
+            // Let some time to the daemon to fully initialize its environment.
+            tokio::time::delay_for(Duration::from_millis(250)).await;
+
+            DaemonClient::new(&socket_path).await?;
+            format::info("daemon spawned and ready for use.");
+        }
+    }
+
+    Ok(())
 }
