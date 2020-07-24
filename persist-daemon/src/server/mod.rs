@@ -8,6 +8,7 @@ use tokio_util::codec::{Framed, LinesCodec};
 pub mod handle;
 pub mod request;
 pub mod state;
+pub mod codec;
 
 use persist_core::daemon::{PID_FILE, SOCK_FILE};
 use persist_core::error::Error;

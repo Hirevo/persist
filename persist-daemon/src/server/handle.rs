@@ -14,6 +14,8 @@ use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 use persist_core::error::Error;
 use persist_core::protocol::{ProcessSpec, ProcessStatus};
 
+use crate::server::codec::LogDecoder;
+
 pub struct ProcessHandle {
     pub(crate) spec: ProcessSpec,
     pub(crate) process: Option<Process>,
@@ -122,8 +124,8 @@ impl ProcessHandle {
 
         let stdout = child.stdout.take().expect("failed to capture stdout");
         let stderr = child.stderr.take().expect("failed to capture stderr");
-        let mut stdout = FramedRead::new(stdout, LinesCodec::new());
-        let mut stderr = FramedRead::new(stderr, LinesCodec::new());
+        let mut stdout = FramedRead::new(stdout, LogDecoder::new());
+        let mut stderr = FramedRead::new(stderr, LogDecoder::new());
 
         let sender = self.stdout.clone();
         tokio::spawn(async move {
