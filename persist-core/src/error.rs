@@ -10,6 +10,8 @@ pub enum PersistError {
     ProcessNotFound,
     #[error("could not find home directory")]
     HomeDirNotFound,
+    #[error("could not find any running daemon")]
+    DaemonNotFound,
 }
 
 #[derive(Debug, Error)]

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use tokio::process::Command;
@@ -41,6 +42,10 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
 
 pub async fn connect() -> Result<DaemonClient, Error> {
     let home_dir = persist_core::daemon::home_dir()?;
+    format::info(format!(
+        "using daemon from: {}",
+        format::format_path(&home_dir).bold(),
+    ));
     let socket_path = home_dir.join(SOCK_FILE);
 
     // if daemon doesn't exists, spawn it.
@@ -51,9 +56,15 @@ pub async fn connect() -> Result<DaemonClient, Error> {
             let mut cur_exe = std::env::current_exe()?;
             cur_exe.set_file_name("persist-daemon");
 
+            let _ = tokio::fs::create_dir_all(&home_dir);
+
             // Spawn the daemon.
             // (it is ok to await on it, because it should fork to daemonize early anyway).
-            let _ = Command::new(cur_exe).arg("start").spawn()?.await?;
+            let _ = Command::new(cur_exe)
+                .arg("start")
+                .current_dir(home_dir)
+                .spawn()?
+                .await?;
 
             // Let some time to the daemon to fully initialize its environment.
             tokio::time::delay_for(Duration::from_millis(250)).await;
