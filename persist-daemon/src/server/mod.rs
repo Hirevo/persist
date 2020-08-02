@@ -5,10 +5,10 @@ use futures::stream::StreamExt;
 use tokio::net::{UnixListener, UnixStream};
 use tokio_util::codec::{Framed, LinesCodec};
 
+pub mod codec;
 pub mod handle;
 pub mod request;
 pub mod state;
-pub mod codec;
 
 use persist_core::daemon::{PID_FILE, SOCK_FILE};
 use persist_core::error::Error;
