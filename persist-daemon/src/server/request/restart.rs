@@ -18,8 +18,9 @@ pub async fn handle(
     let names = match request.filters {
         Some(names) => names,
         None => {
-            let future = state.with_handles(|handles| handles.keys().cloned().collect());
-            future.await
+            state
+                .with_handles(|handles| handles.keys().cloned().collect())
+                .await
         }
     };
     let updated_env = request.env;

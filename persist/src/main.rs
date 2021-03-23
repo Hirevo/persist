@@ -25,6 +25,8 @@ pub enum Opts {
     Restart(commands::restart::Opts),
     /// Get information about a process
     Info(commands::info::Opts),
+    /// Initialize a new `persist` workspace in the current directory
+    Init(commands::init::Opts),
     /// Delete an existing process
     Delete(commands::delete::Opts),
     /// List all managed processes
@@ -50,6 +52,7 @@ async fn main() -> Result<(), Error> {
         Opts::Stop(opts) => commands::stop::handle(opts).await,
         Opts::Restart(opts) => commands::restart::handle(opts).await,
         Opts::Info(opts) => commands::info::handle(opts).await,
+        Opts::Init(opts) => commands::init::handle(opts).await,
         Opts::Delete(opts) => commands::delete::handle(opts).await,
         Opts::List(opts) => commands::list::handle(opts).await,
         Opts::Logs(opts) => commands::logs::handle(opts).await,

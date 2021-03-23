@@ -18,8 +18,9 @@ pub async fn handle(
     let names = match req.filters {
         Some(filters) => filters,
         None => {
-            let future = state.with_handles(|handles| handles.keys().cloned().collect());
-            future.await
+            state
+                .with_handles(|handles| handles.keys().cloned().collect())
+                .await
         }
     };
 

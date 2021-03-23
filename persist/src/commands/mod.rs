@@ -1,6 +1,7 @@
 pub mod delete;
 pub mod dump;
 pub mod info;
+pub mod init;
 pub mod list;
 pub mod logs;
 pub mod prune;

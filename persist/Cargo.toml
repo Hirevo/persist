@@ -33,3 +33,4 @@ json = { package = "serde_json", version = "1.0.44" }
 
 # miscellaneous
 chrono = { version = "0.4.10", features = ["serde"] }
+dirs = "3.0.1"

@@ -60,6 +60,21 @@ pub struct ProcessInfo {
     pub created_at: chrono::NaiveDateTime,
 }
 
+impl From<ProcessInfo> for ProcessSpec {
+    fn from(info: ProcessInfo) -> ProcessSpec {
+        ProcessSpec {
+            name: info.name,
+            cmd: info.cmd,
+            cwd: info.cwd,
+            env: info.env,
+            pid_path: info.pid_path,
+            stdout_path: info.stdout_path,
+            stderr_path: info.stderr_path,
+            created_at: info.created_at,
+        }
+    }
+}
+
 /// The log stream source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
