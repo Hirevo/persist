@@ -61,14 +61,13 @@ pub async fn handle_conn(state: Arc<State>, conn: UnixStream) -> Result<(), Erro
 pub async fn start() -> Result<(), Error> {
     let state = Arc::new(State::new());
     let _ = tokio::fs::remove_file(SOCK_FILE).await;
-    let mut listener = UnixListener::bind(SOCK_FILE)?;
+    let listener = UnixListener::bind(SOCK_FILE)?;
 
     let pid = std::process::id();
     tokio::fs::write(PID_FILE, pid.to_string()).await?;
 
-    let mut incoming = listener.incoming();
-    while let Some(conn) = incoming.next().await {
-        if let Ok(conn) = conn {
+    loop {
+        if let Ok((conn, _)) = listener.accept().await {
             let state = state.clone();
             tokio::spawn(async move {
                 if let Err(err) = handle_conn(state, conn).await {
@@ -78,6 +77,4 @@ pub async fn start() -> Result<(), Error> {
             });
         }
     }
-
-    Ok(())
 }

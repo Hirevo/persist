@@ -77,7 +77,7 @@ impl State {
                     let pid = handle.pid();
                     let cpu_usage = {
                         let usage1 = handle.cpu_usage().await?;
-                        tokio::time::delay_for(Duration::from_millis(200)).await;
+                        tokio::time::sleep(Duration::from_millis(200)).await;
                         let usage2 = handle.cpu_usage().await?;
                         (usage2 - usage1).get::<ratio::percent>()
                     } as u32;
@@ -384,24 +384,36 @@ impl State {
 
         // We kind-of ignore errors because the logs and pids directories are only created
         // upon the first process start-up, so it can legitimately not be there yet.
-        let mut stream = match (logs, pids) {
-            (Ok(logs), Ok(pids)) => logs.chain(pids).left_stream(),
-            (Ok(logs), Err(_)) => logs.right_stream(),
-            (Err(_), Ok(pids)) => pids.right_stream(),
-            (Err(_), Err(_)) => return Ok(pruned_files),
-        };
+        if let Ok(mut logs) = logs {
+            while let Some(dirent) = logs.next_entry().await? {
+                // Ignore non-regular files (like directories).
+                let kind = dirent.file_type().await?;
+                if !kind.is_file() {
+                    continue;
+                }
 
-        while let Some(dirent) = stream.next().await.transpose()? {
-            // Ignore non-regular files (like directories).
-            let kind = dirent.file_type().await?;
-            if !kind.is_file() {
-                continue;
+                let path = dirent.path().canonicalize()?;
+                if !expected_files.contains(&path) {
+                    if let Ok(_) = tokio::fs::remove_file(&path).await {
+                        pruned_files.push(path.display().to_string());
+                    }
+                }
             }
+        }
 
-            let path = dirent.path().canonicalize()?;
-            if !expected_files.contains(&path) {
-                if let Ok(_) = tokio::fs::remove_file(&path).await {
-                    pruned_files.push(path.display().to_string());
+        if let Ok(mut pids) = pids {
+            while let Some(dirent) = pids.next_entry().await? {
+                // Ignore non-regular files (like directories).
+                let kind = dirent.file_type().await?;
+                if !kind.is_file() {
+                    continue;
+                }
+
+                let path = dirent.path().canonicalize()?;
+                if !expected_files.contains(&path) {
+                    if let Ok(_) = tokio::fs::remove_file(&path).await {
+                        pruned_files.push(path.display().to_string());
+                    }
                 }
             }
         }

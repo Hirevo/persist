@@ -71,8 +71,8 @@ impl ProcessHandle {
             loop {
                 match stdout.recv().await {
                     Ok(item) => return Some((item, stdout)),
-                    Err(broadcast::RecvError::Closed) => return None,
-                    Err(broadcast::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return None,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 }
             }
         })
@@ -83,8 +83,8 @@ impl ProcessHandle {
             loop {
                 match stderr.recv().await {
                     Ok(item) => return Some((item, stderr)),
-                    Err(broadcast::RecvError::Closed) => return None,
-                    Err(broadcast::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return None,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 }
             }
         })
@@ -117,7 +117,14 @@ impl ProcessHandle {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let pid = child.id();
+        let pid = match child.id() {
+            Some(pid) => pid,
+            None => {
+                return Err(Error::Other(
+                    "process terminated instantly after spawning".into(),
+                ));
+            }
+        };
         let handle = heim::process::get(pid as i32).await?;
 
         tokio::fs::write(self.spec.pid_path.clone(), pid.to_string()).await?;
@@ -150,7 +157,7 @@ impl ProcessHandle {
         self.process.replace(handle);
 
         let future = async move {
-            let _ = child.await;
+            let _ = child.wait().await;
         };
 
         Ok(future)
