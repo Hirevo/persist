@@ -15,7 +15,7 @@ pub async fn handle(
     conn: &mut Framed<UnixStream, LinesCodec>,
     req: LogsRequest,
 ) -> Result<(), Error> {
-    let mut logs = state.logs(req.filters, req.lines, req.stream).await?;
+    let mut logs = state.logs(req.filters, req.lines, req.stream, req.source_filter).await?;
 
     let response = Response::Logs(LogsResponse::Subscribed);
     let serialized = json::to_string(&response)?;

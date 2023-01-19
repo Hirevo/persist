@@ -156,38 +156,55 @@ impl State {
         spec.stderr_path = stderr_path.canonicalize()?;
 
         processes.insert(spec.name.clone(), ProcessHandle::new(spec.clone()));
-        let handle = processes.get_mut(&spec.name).unwrap();
 
-        let future = handle.start().await?;
+        let info = match spec.status {
+            ProcessStatus::Running => {
+                let handle = processes.get_mut(&spec.name).unwrap();
 
-        let name = handle.name().to_string();
-        let pid = handle.pid().unwrap();
-        let cloned_self = self.clone();
-        tokio::spawn(async move {
-            let _ = future.await;
-            let mut processes = cloned_self.processes.lock().await;
-            if let Some(handle) = processes.get_mut(name.as_str()) {
-                match &mut handle.process {
-                    Some(inner) if pid == (inner.pid() as usize) => {
-                        let _ = handle.process.take();
-                        // TODO: restart process ?
+                let future = handle.start().await?;
+
+                let name = handle.name().to_string();
+                let pid = handle.pid().unwrap();
+                let cloned_self = self.clone();
+                tokio::spawn(async move {
+                    let _ = future.await;
+                    let mut processes = cloned_self.processes.lock().await;
+                    if let Some(handle) = processes.get_mut(name.as_str()) {
+                        match &mut handle.process {
+                            Some(inner) if pid == (inner.pid() as usize) => {
+                                let _ = handle.process.take();
+                                // TODO: restart process ?
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => {}
+                });
+
+                ProcessInfo {
+                    name: spec.name,
+                    cmd: spec.cmd,
+                    cwd: spec.cwd,
+                    env: spec.env,
+                    pid: Some(pid),
+                    status: spec.status,
+                    created_at: spec.created_at,
+                    pid_path: spec.pid_path,
+                    stdout_path: spec.stdout_path,
+                    stderr_path: spec.stderr_path,
                 }
             }
-        });
-
-        let info = ProcessInfo {
-            name: spec.name,
-            cmd: spec.cmd,
-            cwd: spec.cwd,
-            env: spec.env,
-            pid: Some(pid),
-            status: ProcessStatus::Running,
-            created_at: spec.created_at,
-            pid_path: spec.pid_path,
-            stdout_path: spec.stdout_path,
-            stderr_path: spec.stderr_path,
+            ProcessStatus::Stopped => ProcessInfo {
+                name: spec.name,
+                cmd: spec.cmd,
+                cwd: spec.cwd,
+                env: spec.env,
+                pid: None,
+                status: spec.status,
+                created_at: spec.created_at,
+                pid_path: spec.pid_path,
+                stdout_path: spec.stdout_path,
+                stderr_path: spec.stderr_path,
+            },
         };
 
         Ok(info)
@@ -266,11 +283,19 @@ impl State {
             Some(filters) => processes
                 .iter()
                 .filter(|(name, _)| filters.contains(name))
-                .map(|(_, handle)| handle.spec().clone())
+                .map(|(_, handle)| {
+                    let mut spec = handle.spec().clone();
+                    spec.status = handle.status();
+                    spec
+                })
                 .collect(),
             None => processes
                 .iter()
-                .map(|(_, handle)| handle.spec().clone())
+                .map(|(_, handle)| {
+                    let mut spec = handle.spec().clone();
+                    spec.status = handle.status();
+                    spec
+                })
                 .collect(),
         };
 
@@ -282,6 +307,7 @@ impl State {
         filters: Option<Vec<String>>,
         lines: usize,
         stream: bool,
+        source_filter: Option<LogStreamSource>,
     ) -> Result<impl Stream<Item = LogEntry>, Error> {
         let processes = self.processes.lock().await;
 
@@ -290,9 +316,9 @@ impl State {
                 .iter()
                 .filter(|(name, _)| filters.as_ref().map_or(true, |names| names.contains(name)))
                 .map(|(_, handle)| async move {
-                    let stdout_init = match lines {
-                        0 => futures::stream::empty().right_stream(),
-                        lines => {
+                    let stdout_init = match (source_filter, lines) {
+                        (Some(LogStreamSource::Stderr), _) | (_, 0) => futures::stream::empty().right_stream(),
+                        (_, lines) => {
                             let contents = tokio::fs::read_to_string(handle.stdout_file()).await?;
                             let lines = contents
                                 .split('\n')
@@ -305,9 +331,9 @@ impl State {
                         }
                     };
 
-                    let stderr_init = match lines {
-                        0 => futures::stream::empty().right_stream(),
-                        lines => {
+                    let stderr_init = match (source_filter, lines) {
+                        (Some(LogStreamSource::Stdout), _) | (_, 0) => futures::stream::empty().right_stream(),
+                        (_, lines) => {
                             let contents = tokio::fs::read_to_string(handle.stderr_file()).await?;
                             let lines = contents
                                 .split('\n')
@@ -322,14 +348,22 @@ impl State {
 
                     if stream {
                         let name = handle.name().to_string();
-                        let stdout = stdout_init.chain(handle.stdout()).map(move |msg| LogEntry {
+                        let stdout = match source_filter {
+                            Some(LogStreamSource::Stderr) => futures::stream::empty().right_stream(),
+                            _ => handle.stdout().left_stream(),
+                        };
+                        let stdout = stdout_init.chain(stdout).map(move |msg| LogEntry {
                             msg,
                             name: name.clone(),
                             source: LogStreamSource::Stdout,
                         });
 
                         let name = handle.name().to_string();
-                        let stderr = stderr_init.chain(handle.stderr()).map(move |msg| LogEntry {
+                        let stderr = match source_filter {
+                            Some(LogStreamSource::Stdout) => futures::stream::empty().right_stream(),
+                            _ => handle.stderr().left_stream(),
+                        };
+                        let stderr = stderr_init.chain(stderr).map(move |msg| LogEntry {
                             msg,
                             name: name.clone(),
                             source: LogStreamSource::Stderr,

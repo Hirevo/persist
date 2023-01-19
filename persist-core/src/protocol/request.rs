@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{LogStreamSource, ProcessSpec};
+use crate::protocol::{LogStreamSource, ProcessSpec, ProcessStatus};
 
 /// A request to start managing a new process.
 ///
@@ -14,6 +14,7 @@ pub struct StartRequest {
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
     pub env: HashMap<String, String>,
+    pub status: ProcessStatus,
 }
 
 /// A request to start managing a new process.

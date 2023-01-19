@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use persist_core::protocol::ProcessSpec;
+use persist_core::protocol::{ProcessSpec, ProcessStatus};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessDump {
@@ -11,6 +11,7 @@ pub struct ProcessDump {
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
     pub env: HashMap<String, String>,
+    pub status: ProcessStatus,
     pub pid_path: PathBuf,
     pub stdout_path: PathBuf,
     pub stderr_path: PathBuf,
@@ -24,6 +25,7 @@ impl From<ProcessSpec> for ProcessDump {
             cmd: spec.cmd,
             cwd: spec.cwd,
             env: spec.env.into_iter().collect(),
+            status: spec.status,
             pid_path: spec.pid_path,
             stdout_path: spec.stdout_path,
             stderr_path: spec.stderr_path,
@@ -39,6 +41,7 @@ impl From<ProcessDump> for ProcessSpec {
             cmd: spec.cmd,
             cwd: spec.cwd,
             env: spec.env.into_iter().collect(),
+            status: spec.status,
             pid_path: spec.pid_path,
             stdout_path: spec.stdout_path,
             stderr_path: spec.stderr_path,

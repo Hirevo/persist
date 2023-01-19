@@ -20,6 +20,12 @@ pub enum ProcessStatus {
     Stopped,
 }
 
+impl Default for ProcessStatus {
+    fn default() -> Self {
+        ProcessStatus::Running
+    }
+}
+
 impl Display for ProcessStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -39,6 +45,8 @@ pub struct ProcessSpec {
     pub cmd: Vec<String>,
     pub cwd: PathBuf,
     pub env: HashMap<String, String>,
+    #[serde(default)]
+    pub status: ProcessStatus,
     pub pid_path: PathBuf,
     pub stdout_path: PathBuf,
     pub stderr_path: PathBuf,
@@ -67,6 +75,7 @@ impl From<ProcessInfo> for ProcessSpec {
             cmd: info.cmd,
             cwd: info.cwd,
             env: info.env,
+            status: info.status,
             pid_path: info.pid_path,
             stdout_path: info.stdout_path,
             stderr_path: info.stderr_path,
@@ -76,7 +85,7 @@ impl From<ProcessInfo> for ProcessSpec {
 }
 
 /// The log stream source.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LogStreamSource {
     /// Standard output stream.

@@ -13,12 +13,12 @@ license = "MIT OR Apache-2.0"
 maintenance = { status = "actively-developed" }
 
 [dependencies]
-serde = { version = "1.0.125", features = ["derive"] }
-chrono = { version = "0.4.19", features = ["serde"] }
-thiserror = "1.0.24"
+serde = { version = "1.0.147", features = ["derive"] }
+chrono = { version = "0.4.23", features = ["serde"] }
+thiserror = "1.0.37"
 
-tokio-util = { version = "0.6.5", features = ["codec"] }
-json = { package = "serde_json", version = "1.0.64" }
+tokio-util = { version = "0.7.4", features = ["codec"] }
+json = { package = "serde_json", version = "1.0.89" }
 heim = "0.0.11"
-nix = "0.20.0"
+nix = "0.25.0"
 dirs-next = "2.0.0"
