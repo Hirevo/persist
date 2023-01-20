@@ -19,6 +19,6 @@ thiserror = "1.0.37"
 
 tokio-util = { version = "0.7.4", features = ["codec"] }
 json = { package = "serde_json", version = "1.0.89" }
-heim = "0.0.11"
+heim = { version = "0.1.0-rc.1", default-features = false, features = ["process"] }
 nix = "0.25.0"
 dirs-next = "2.0.0"

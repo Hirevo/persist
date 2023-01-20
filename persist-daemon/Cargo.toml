@@ -22,7 +22,7 @@ tokio-util = { version = "0.7.4", features = ["codec"] }
 futures = "0.3.25"
 
 # process/system monitoring
-heim = "0.0.11"
+heim = { version = "0.1.0-rc.1", default-features = false, features = ["process"] }
 
 # CLI helpers
 structopt = "0.3.26"
