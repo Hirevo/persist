@@ -92,7 +92,7 @@ pub async fn init() -> Result<(), Error> {
         format::format_path(&dir).bold(),
     ));
 
-    // if daemon doesn't exists, spawn it.
+    // if daemon doesn't exist, spawn it.
     match DaemonClient::new(&socket_path).await {
         Ok(_) => {
             format::error("a live daemon is already controlling this location");

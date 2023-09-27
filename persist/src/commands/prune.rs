@@ -24,7 +24,7 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
 
     if !response.pruned_files.is_empty() {
         for pruned_file in response.pruned_files {
-            let msg = format!("'{}' successfully pruned", pruned_file);
+            let msg = format!("'{}' successfully pruned", format::format_path(&pruned_file));
             format::success(msg);
         }
     } else {
