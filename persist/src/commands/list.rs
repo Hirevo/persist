@@ -1,6 +1,5 @@
 use colored::Colorize;
-use humansize::file_size_opts::CONVENTIONAL;
-use humansize::FileSize;
+use humansize::{format_size, DECIMAL};
 use prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE;
 use prettytable::Table;
 use serde::{Deserialize, Serialize};
@@ -35,7 +34,7 @@ pub async fn handle(_: Opts) -> Result<(), Error> {
                 ProcessStatus::Stopped => "N/A".to_string(),
             };
             let mem_usage = match metric.status {
-                ProcessStatus::Running => metric.mem_usage.file_size(CONVENTIONAL).unwrap(),
+                ProcessStatus::Running => format_size(metric.mem_usage, DECIMAL),
                 ProcessStatus::Stopped => "N/A".to_string(),
             };
             let pid = match metric.pid {

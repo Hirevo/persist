@@ -22,6 +22,12 @@ pub struct Opts {
     /// Disable log streaming
     #[structopt(long = "no-stream")]
     pub no_stream: bool,
+    /// Only show logs from the process' stdout
+    #[structopt(long)]
+    pub out: bool,
+    /// Only show logs from the process' stderr
+    #[structopt(long)]
+    pub err: bool,
 }
 
 pub async fn handle(opts: Opts) -> Result<(), Error> {
@@ -35,11 +41,22 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
         (true, _) => None,
     };
 
+    let source_filter = match (opts.out, opts.err) {
+        (false, false) => None,
+        (true, false) => Some(LogStreamSource::Stdout),
+        (false, true) => Some(LogStreamSource::Stderr),
+        (true, true) => {
+            return Err(Error::from(String::from(
+                "only one of `--out` or `--err` is expected (none of those means both).",
+            )));
+        }
+    };
+
     let request = LogsRequest {
         filters,
         stream: !opts.no_stream,
         lines: opts.lines,
-        source_filter: None,
+        source_filter,
     };
 
     let mut daemon = daemon::connect().await?;

@@ -1,5 +1,3 @@
-use std::io;
-
 use bytes::BytesMut;
 use tokio_util::codec::Decoder;
 
@@ -47,10 +45,8 @@ impl Decoder for LogDecoder {
                 self.next_index = 0;
                 let line = src.split_to(index + 1);
                 let line = &line[..line.len() - 1];
-                let line = std::str::from_utf8(line).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidData, "Unable to decode input as UTF8")
-                })?;
-                Ok(line.to_string())
+                let line = String::from_utf8_lossy(line).into_owned();
+                Ok(line)
             })
             .transpose()
     }
@@ -67,10 +63,8 @@ impl Decoder for LogDecoder {
             } else {
                 &line[..]
             };
-            let line = std::str::from_utf8(line).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "Unable to decode input as UTF8")
-            })?;
-            Ok(Some(line.to_string()))
+            let line = String::from_utf8_lossy(line).into_owned();
+            Ok(Some(line))
         }
     }
 }

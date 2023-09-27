@@ -66,10 +66,11 @@ pub async fn connect() -> Result<DaemonClient, Error> {
                 .arg("start")
                 .current_dir(home_dir)
                 .spawn()?
+                .wait()
                 .await?;
 
             // Let some time to the daemon to fully initialize its environment.
-            tokio::time::delay_for(Duration::from_millis(250)).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
 
             let client = DaemonClient::new(&socket_path).await?;
             format::info("daemon spawned and connected.");
@@ -91,7 +92,7 @@ pub async fn init() -> Result<(), Error> {
         format::format_path(&dir).bold(),
     ));
 
-    // if daemon doesn't exists, spawn it.
+    // if daemon doesn't exist, spawn it.
     match DaemonClient::new(&socket_path).await {
         Ok(_) => {
             format::error("a live daemon is already controlling this location");
@@ -109,10 +110,11 @@ pub async fn init() -> Result<(), Error> {
                 .arg("start")
                 .current_dir(dir)
                 .spawn()?
+                .wait()
                 .await?;
 
             // Let some time to the daemon to fully initialize its environment.
-            tokio::time::delay_for(Duration::from_millis(250)).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
 
             DaemonClient::new(&socket_path).await?;
             format::info("daemon spawned and ready for use.");

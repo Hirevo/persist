@@ -5,7 +5,7 @@ use structopt::StructOpt;
 use tokio::fs;
 
 use persist_core::error::Error;
-use persist_core::protocol::{ProcessSpec, RestoreRequest};
+use persist_core::protocol::{ProcessSpec, ProcessStatus, RestoreRequest};
 
 use crate::daemon;
 use crate::format;
@@ -18,6 +18,9 @@ pub struct Opts {
     /// Restore all processes
     #[structopt(long)]
     pub all: bool,
+    /// Don't start any of the restored processes
+    #[structopt(long)]
+    pub stopped: bool,
     /// The names of the processes to restore
     #[structopt(name = "process-name")]
     pub processes: Vec<String>,
@@ -36,7 +39,7 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
 
     let contents = fs::read(opts.from).await?;
     let specs: Vec<ProcessSpec> = json::from_slice(contents.as_slice())?;
-    let specs = if let Some(filters) = filters {
+    let mut specs = if let Some(filters) = filters {
         specs
             .into_iter()
             .filter(|spec| filters.contains(&spec.name))
@@ -44,6 +47,12 @@ pub async fn handle(opts: Opts) -> Result<(), Error> {
     } else {
         specs
     };
+
+    if opts.stopped {
+        for spec in &mut specs {
+            spec.status = ProcessStatus::Stopped;
+        }
+    }
 
     let request = RestoreRequest { specs };
     let mut daemon = daemon::connect().await?;

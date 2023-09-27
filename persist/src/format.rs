@@ -17,7 +17,7 @@ pub fn info(msg: impl Display) {
 
 pub fn format_path(path: impl AsRef<Path>) -> String {
     let path = path.as_ref();
-    if let Some(home_dir) = dirs::home_dir() {
+    if let Some(home_dir) = dirs_next::home_dir() {
         let mut components = path.components();
         let matches = home_dir
             .components()

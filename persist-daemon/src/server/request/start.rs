@@ -22,6 +22,7 @@ pub async fn handle(
         cmd: spec.cmd,
         env: spec.env,
         cwd: spec.cwd,
+        status: spec.status,
         created_at: now,
         pid_path: PathBuf::new(),
         stdout_path: PathBuf::new(),

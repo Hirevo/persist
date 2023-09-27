@@ -1,14 +1,15 @@
 use std::future::Future;
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::Arc;
 
 use futures::sink::SinkExt;
-use futures::stream;
-use futures::stream::{Stream, StreamExt};
-use heim::process::Process;
+use futures::stream::{self, Stream, StreamExt};
+use nix::sys::signal::Signal;
+use nix::unistd::Pid;
 use tokio::fs::OpenOptions;
 use tokio::process::Command;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Notify};
 use tokio_util::codec::{FramedRead, FramedWrite, LinesCodec};
 
 use persist_core::error::Error;
@@ -16,9 +17,14 @@ use persist_core::protocol::{ProcessSpec, ProcessStatus};
 
 use crate::server::codec::LogDecoder;
 
+pub struct Inner {
+    pub pid: Pid,
+    pub ended: Arc<Notify>,
+}
+
 pub struct ProcessHandle {
     pub(crate) spec: ProcessSpec,
-    pub(crate) process: Option<Process>,
+    pub(crate) process: Option<Inner>,
     pub(crate) stdout: broadcast::Sender<String>,
     pub(crate) stderr: broadcast::Sender<String>,
 }
@@ -51,7 +57,9 @@ impl ProcessHandle {
     }
 
     pub fn pid(&self) -> Option<usize> {
-        self.process.as_ref().map(|handle| handle.pid() as usize)
+        self.process
+            .as_ref()
+            .map(|handle| handle.pid.as_raw() as usize)
     }
 
     pub fn pid_file(&self) -> &Path {
@@ -71,8 +79,8 @@ impl ProcessHandle {
             loop {
                 match stdout.recv().await {
                     Ok(item) => return Some((item, stdout)),
-                    Err(broadcast::RecvError::Closed) => return None,
-                    Err(broadcast::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return None,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 }
             }
         })
@@ -83,8 +91,8 @@ impl ProcessHandle {
             loop {
                 match stderr.recv().await {
                     Ok(item) => return Some((item, stderr)),
-                    Err(broadcast::RecvError::Closed) => return None,
-                    Err(broadcast::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return None,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 }
             }
         })
@@ -117,8 +125,21 @@ impl ProcessHandle {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let pid = child.id();
-        let handle = heim::process::get(pid as i32).await?;
+        let pid = match child.id() {
+            Some(pid) => pid,
+            None => {
+                return Err(Error::Other(
+                    "process terminated instantly after spawning".into(),
+                ));
+            }
+        };
+
+        let ended = Arc::new(Notify::new());
+
+        let inner = Inner {
+            pid: Pid::from_raw(pid as _),
+            ended: Arc::clone(&ended),
+        };
 
         tokio::fs::write(self.spec.pid_path.clone(), pid.to_string()).await?;
 
@@ -147,10 +168,18 @@ impl ProcessHandle {
             }
         });
 
-        self.process.replace(handle);
+        self.process.replace(inner);
+
+        tokio::spawn({
+            let ended = Arc::clone(&ended);
+            async move {
+                let _ = child.wait().await;
+                ended.notify_waiters();
+            }
+        });
 
         let future = async move {
-            let _ = child.await;
+            ended.notified().await;
         };
 
         Ok(future)
@@ -158,7 +187,9 @@ impl ProcessHandle {
 
     pub async fn stop(&mut self) -> Result<(), Error> {
         if let Some(child) = self.process.take() {
-            let _ = child.terminate().await;
+            let future = child.ended.notified();
+            nix::sys::signal::kill(child.pid, Signal::SIGTERM)?;
+            let _ = future.await;
         }
         Ok(())
     }
@@ -178,11 +209,22 @@ impl ProcessHandle {
 
     pub async fn with_process<'a, F, Fut, T>(&'a self, func: F) -> Option<T>
     where
-        F: FnOnce(&'a Process) -> Fut,
+        F: FnOnce(&'a Inner) -> Fut,
         Fut: Future<Output = T> + 'a,
     {
         if let Some(process) = self.process.as_ref() {
             Some(func(process).await)
+        } else {
+            None
+        }
+    }
+
+    pub fn with_process_sync<'a, F, T>(&'a self, func: F) -> Option<T>
+    where
+        F: FnOnce(&'a Inner) -> T,
+    {
+        if let Some(process) = self.process.as_ref() {
+            Some(func(process))
         } else {
             None
         }
