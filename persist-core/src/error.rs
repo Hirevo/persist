@@ -19,10 +19,6 @@ pub enum Error {
     #[error("{0}")]
     IO(#[from] io::Error),
     #[error("{0}")]
-    Heim(#[from] heim::Error),
-    #[error("{0}")]
-    HeimProcess(#[from] heim::process::ProcessError),
-    #[error("{0}")]
     JSON(#[from] json::Error),
     #[error("{0}")]
     Codec(#[from] tokio_util::codec::LinesCodecError),
