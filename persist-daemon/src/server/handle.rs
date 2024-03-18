@@ -115,15 +115,28 @@ impl ProcessHandle {
 
         let (cmd, args) = self.spec.cmd.split_first().expect("empty command");
 
-        let mut child = Command::new(cmd)
-            .args(args)
-            .env_clear()
-            .envs(self.spec.env.iter())
-            .current_dir(self.spec.cwd.as_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let mut child = {
+            let mut command = Command::new(cmd);
+
+            command
+                .args(args)
+                .env_clear()
+                .envs(self.spec.env.iter())
+                .current_dir(self.spec.cwd.as_path())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+
+            unsafe {
+                command.pre_exec(|| {
+                    let pid = nix::unistd::getpid();
+                    nix::unistd::setpgid(pid, pid)?;
+                    Ok(())
+                });
+            }
+
+            command.spawn()?
+        };
 
         let pid = match child.id() {
             Some(pid) => pid,
@@ -188,7 +201,7 @@ impl ProcessHandle {
     pub async fn stop(&mut self) -> Result<(), Error> {
         if let Some(child) = self.process.take() {
             let future = child.ended.notified();
-            nix::sys::signal::kill(child.pid, Signal::SIGTERM)?;
+            nix::sys::signal::killpg(child.pid, Signal::SIGTERM)?;
             let _ = future.await;
         }
         Ok(())
