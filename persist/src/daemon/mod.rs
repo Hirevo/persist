@@ -2,9 +2,9 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use clap::Subcommand;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 use tokio::process::Command;
 
 pub mod client;
@@ -13,9 +13,9 @@ use persist_core::daemon::SOCK_FILE;
 use persist_core::error::Error;
 
 use crate::daemon::client::DaemonClient;
-use crate::format;
+use crate::{format, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Subcommand)]
 pub enum Opts {
     /// Kill the current daemon (will stop all managed processes)
     Kill,
@@ -23,7 +23,7 @@ pub enum Opts {
     Version,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     match opts {
         Opts::Kill => {
             let mut daemon = self::connect().await?;

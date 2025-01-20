@@ -1,28 +1,28 @@
 use std::env;
 
+use clap::Parser;
 use persist_core::protocol::ProcessStatus;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use persist_core::error::Error;
 use persist_core::protocol::StartRequest;
 
-use crate::daemon;
 use crate::format;
+use crate::{daemon, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
 pub struct Opts {
     /// The name to give the process, to refer to it later
-    #[structopt(long)]
+    #[arg(long)]
     pub name: Option<String>,
     /// Insert the process, but do not start it immediately
-    #[structopt(long)]
+    #[arg(long)]
     pub stopped: bool,
     /// The command to launch
     pub command: Vec<String>,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     if opts.command.is_empty() {
         return Err(Error::from(String::from("empty commands not permitted")));
     }

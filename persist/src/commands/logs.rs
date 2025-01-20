@@ -1,36 +1,36 @@
+use clap::Parser;
 use colored::Colorize;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use persist_core::error::Error;
 use persist_core::protocol::{LogStreamSource, LogsRequest, LogsResponse};
 
-use crate::daemon;
+use crate::{daemon, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
 pub struct Opts {
     /// The names of the processes to get logs for
-    #[structopt(name = "process-name")]
+    #[arg(name = "PROCESS_NAME")]
     pub processes: Vec<String>,
     /// Get logs from all the processes
-    #[structopt(long)]
+    #[arg(long)]
     pub all: bool,
     /// The number of previous log lines to initially output
-    #[structopt(long, short = "n", default_value = "10")]
+    #[arg(long, short = 'n', default_value = "10")]
     pub lines: usize,
     /// Disable log streaming
-    #[structopt(long = "no-stream")]
+    #[arg(long)]
     pub no_stream: bool,
     /// Only show logs from the process' stdout
-    #[structopt(long)]
+    #[arg(long)]
     pub out: bool,
     /// Only show logs from the process' stderr
-    #[structopt(long)]
+    #[arg(long)]
     pub err: bool,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     let filters = match (opts.all, opts.processes) {
         (false, processes) if processes.is_empty() => {
             return Err(Error::from(String::from(

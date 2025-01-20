@@ -1,26 +1,26 @@
+use clap::Parser;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use persist_core::error::Error;
 use persist_core::protocol::RestartRequest;
 
-use crate::daemon;
 use crate::format;
+use crate::{daemon, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
 pub struct Opts {
     /// Restart all processes
-    #[structopt(long)]
+    #[arg(long)]
     pub all: bool,
     /// The names of the processes to restart
-    #[structopt(name = "process-name")]
+    #[arg(name = "PROCESS_NAMES")]
     pub processes: Vec<String>,
     /// Update the processes' environments with the current one
-    #[structopt(long)]
+    #[arg(long)]
     pub update_env: bool,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     let filters = match (opts.all, opts.processes) {
         (false, processes) if processes.is_empty() => {
             return Err(Error::from(String::from(

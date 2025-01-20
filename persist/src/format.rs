@@ -1,7 +1,49 @@
 use std::fmt::Display;
 use std::path::Path;
 
+use clap::ValueEnum;
 use colored::Colorize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ValueEnum)]
+pub enum TableStyle {
+    #[default]
+    Ascii,
+    Unicode,
+}
+
+impl Into<term_table::TableStyle> for TableStyle {
+    fn into(self) -> term_table::TableStyle {
+        match self {
+            TableStyle::Ascii => term_table::TableStyle {
+                top_left_corner: '+',
+                top_right_corner: '+',
+                bottom_left_corner: '+',
+                bottom_right_corner: '+',
+                outer_left_vertical: '+',
+                outer_right_vertical: '+',
+                outer_bottom_horizontal: '+',
+                outer_top_horizontal: '+',
+                intersection: '+',
+                vertical: '|',
+                horizontal: '-',
+            },
+            TableStyle::Unicode => term_table::TableStyle {
+                top_left_corner: '╭',
+                top_right_corner: '╮',
+                bottom_left_corner: '╰',
+                bottom_right_corner: '╯',
+                outer_left_vertical: '├',
+                outer_right_vertical: '┤',
+                outer_bottom_horizontal: '┴',
+                outer_top_horizontal: '┬',
+                intersection: '┼',
+                vertical: '│',
+                horizontal: '─',
+            },
+        }
+    }
+}
 
 pub fn error(err: impl Display) {
     eprintln!("{} {}", "error:".red().bold(), err);

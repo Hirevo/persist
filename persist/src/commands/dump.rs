@@ -1,29 +1,29 @@
 use std::path::PathBuf;
 
+use clap::Parser;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use persist_core::error::Error;
 use persist_core::protocol::DumpRequest;
 
-use crate::daemon;
 use crate::dump::ProcessDump;
 use crate::format;
+use crate::{daemon, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
 pub struct Opts {
     /// Dump the configuration of all the processes
-    #[structopt(long)]
+    #[arg(long)]
     pub all: bool,
     /// The names of the processes to dump configurations for
-    #[structopt(name = "process-name")]
+    #[arg(name = "PROCESS_NAME")]
     pub processes: Vec<String>,
     /// The path of the file to store the dump into
-    #[structopt(short, long, default_value = "persist-dump.json")]
+    #[arg(short, long, default_value = "persist-dump.json")]
     pub out: PathBuf,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     let filters = match (opts.all, opts.processes) {
         (false, processes) if processes.is_empty() => {
             return Err(Error::from(String::from(

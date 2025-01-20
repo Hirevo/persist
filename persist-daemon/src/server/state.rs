@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use futures::future;
 use futures::stream::{Stream, StreamExt};
-use sysinfo::{PidExt, ProcessExt, System, SystemExt};
+use sysinfo::{ProcessesToUpdate, System};
 use tokio::sync::Mutex;
 
 use persist_core::daemon::{self, LOGS_DIR, PIDS_DIR};
@@ -86,9 +86,13 @@ impl State {
             };
             let pid = sysinfo::Pid::from_u32(pid as _);
             //? this first refresh adds the process to the list if it isn't there yet.
-            locked.system.refresh_process(pid);
+            locked
+                .system
+                .refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
             //? first refresh since added, CPU usage will be diff-ed with the next one.
-            locked.system.refresh_process(pid);
+            locked
+                .system
+                .refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
         for handle in locked.processes.values() {
@@ -97,7 +101,9 @@ impl State {
             };
             let pid = sysinfo::Pid::from_u32(pid as _);
             //? second refresh since added, the CPU usage diffs are now ready.
-            locked.system.refresh_process(pid);
+            locked
+                .system
+                .refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
         }
 
         let mut metrics = locked

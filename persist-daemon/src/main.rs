@@ -1,22 +1,22 @@
 use tokio::runtime;
 
+use clap::Parser;
 use nix::unistd::ForkResult;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 pub mod server;
 
 use persist_core::error::Error;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
-#[structopt(about, author)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
+#[command(about, author)]
 pub enum Opts {
     /// Start the daemon
     Start,
 }
 
 fn main() -> Result<(), Error> {
-    let config = Opts::from_args();
+    let config = Opts::parse();
 
     match config {
         Opts::Start => {

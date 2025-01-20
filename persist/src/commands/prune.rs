@@ -1,20 +1,20 @@
+use clap::Parser;
 use serde::{Deserialize, Serialize};
-use structopt::StructOpt;
 
 use persist_core::error::Error;
 use persist_core::protocol::PruneRequest;
 
-use crate::daemon;
 use crate::format;
+use crate::{daemon, GlobalOpts};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, StructOpt)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Parser)]
 pub struct Opts {
     /// Also prune file of stopped, but still managed, processes.
-    #[structopt(long)]
+    #[arg(long)]
     pub stopped: bool,
 }
 
-pub async fn handle(opts: Opts) -> Result<(), Error> {
+pub async fn handle(_: GlobalOpts, opts: Opts) -> Result<(), Error> {
     let request = PruneRequest {
         stopped: opts.stopped,
     };
