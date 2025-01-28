@@ -446,12 +446,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lazy_static"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
-
-[[package]]
 name = "libc"
 version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -596,7 +590,7 @@ dependencies = [
  "persist-core",
  "serde",
  "serde_json",
- "term-table",
+ "tableau",
  "tokio",
  "tokio-util",
 ]
@@ -859,12 +853,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "term-table"
-version = "1.4.0"
+name = "tableau"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "210f90191b719267bc8b6307659faf54a77400d06b8033ece26692696fc002be"
+checksum = "f88a353e3cc79de50f81be4aa15d9d8ebbb83083e7a70d703f00742f85d2ec86"
 dependencies = [
- "lazy_static",
  "regex",
  "unicode-width",
 ]
@@ -959,9 +952,9 @@ checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
 
 [[package]]
 name = "unicode-width"
-version = "0.1.14"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+checksum = "1fc81956842c57dac11422a97c3b8195a1ff727f06e85c84ed2e8aa277c9a0fd"
 
 [[package]]
 name = "utf8parse"

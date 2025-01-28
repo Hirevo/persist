@@ -4,6 +4,7 @@ use std::path::Path;
 use clap::ValueEnum;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use tableau::Style;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ValueEnum)]
 pub enum TableStyle {
@@ -12,35 +13,11 @@ pub enum TableStyle {
     Unicode,
 }
 
-impl Into<term_table::TableStyle> for TableStyle {
-    fn into(self) -> term_table::TableStyle {
+impl Into<Style> for TableStyle {
+    fn into(self) -> Style {
         match self {
-            TableStyle::Ascii => term_table::TableStyle {
-                top_left_corner: '+',
-                top_right_corner: '+',
-                bottom_left_corner: '+',
-                bottom_right_corner: '+',
-                outer_left_vertical: '+',
-                outer_right_vertical: '+',
-                outer_bottom_horizontal: '+',
-                outer_top_horizontal: '+',
-                intersection: '+',
-                vertical: '|',
-                horizontal: '-',
-            },
-            TableStyle::Unicode => term_table::TableStyle {
-                top_left_corner: '╭',
-                top_right_corner: '╮',
-                bottom_left_corner: '╰',
-                bottom_right_corner: '╯',
-                outer_left_vertical: '├',
-                outer_right_vertical: '┤',
-                outer_bottom_horizontal: '┴',
-                outer_top_horizontal: '┬',
-                intersection: '┼',
-                vertical: '│',
-                horizontal: '─',
-            },
+            TableStyle::Ascii => Style::ascii(),
+            TableStyle::Unicode => Style::rounded(),
         }
     }
 }

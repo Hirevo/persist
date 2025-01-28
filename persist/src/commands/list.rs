@@ -2,9 +2,7 @@ use clap::Parser;
 use colored::Colorize;
 use humansize::{format_size, DECIMAL};
 use serde::{Deserialize, Serialize};
-use term_table::row::Row;
-use term_table::table_cell::{Alignment, TableCell};
-use term_table::Table;
+use tableau::{Alignment, Cell, Row, Table};
 
 use persist_core::error::Error;
 use persist_core::protocol::{ListRequest, ProcessStatus};
@@ -18,26 +16,21 @@ pub async fn handle(global_opts: GlobalOpts, _: Opts) -> Result<(), Error> {
     let mut daemon = daemon::connect().await?;
     let metrics = daemon.list(ListRequest { filters: None }).await?;
 
-    let mut table = Table::builder()
-        .style(global_opts.table_style.into())
-        .build();
-
     let columns = ["NAME", "STATUS", "PID", "CPU", "MEMORY"];
-    table.add_row(Row::new(columns.iter().map(|name| {
-        TableCell::builder(name.bold())
-            .alignment(Alignment::Left)
-            .build()
-    })));
+    let mut table = Table::new()
+        .with_style(global_opts.table_style.into())
+        .with_row(Row::new().with_cells(columns.iter().map(|name| Cell::new(name.bold()))));
 
     if metrics.is_empty() {
-        table.set_max_width_for_column(0, 6);
-        table.add_row(Row::new([TableCell::builder("Empty list.".bold())
-            .alignment(Alignment::Center)
-            .col_span(columns.len())
-            .build()]));
+        table.rows.push(
+            Row::new().with_cell(
+                Cell::new("Empty list.".bold())
+                    .with_alignment(Alignment::Center)
+                    .with_column_span(columns.len()),
+            ),
+        );
     } else {
-        let mut first = true;
-        for metric in metrics {
+        for (index, metric) in metrics.into_iter().enumerate() {
             let name = metric.name;
             let status = match metric.status {
                 ProcessStatus::Running => "running".green().bold().to_string(),
@@ -55,19 +48,20 @@ pub async fn handle(global_opts: GlobalOpts, _: Opts) -> Result<(), Error> {
                 Some(pid) => pid.to_string(),
                 None => "".to_string(),
             };
-            let new_row = if first {
-                Row::new
+
+            let row = Row::new().with_cells(
+                [name, status, pid, cpu_usage, mem_usage].map(|value| Cell::new(value)),
+            );
+
+            table.rows.push(if index == 0 {
+                row
             } else {
-                Row::without_separator
-            };
-            table.add_row(new_row([name, status, pid, cpu_usage, mem_usage].map(
-                |value| TableCell::builder(value).alignment(Alignment::Left).build(),
-            )));
-            first = false;
+                row.without_top_border()
+            });
         }
     }
 
-    println!("{}", table.render().trim());
+    println!("{}", table.render());
 
     Ok(())
 }
